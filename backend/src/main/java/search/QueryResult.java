@@ -1,7 +1,14 @@
 package search;
 
-import java.util.List;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+
+import java.util.Map;
 import java.util.UUID;
 
-public record QueryResult(List<UUID> uuids, int count) {
+/**
+ *
+ * @param termFreq List containing - UUID, token & term frequency
+ * @param docFreq  How many documents contained the token
+ */
+public record QueryResult(Map<UUID, Object2IntOpenHashMap<String>> termFreq, Object2IntOpenHashMap<String> docFreq) {
 }

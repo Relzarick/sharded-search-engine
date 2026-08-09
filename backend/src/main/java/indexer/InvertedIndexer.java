@@ -2,9 +2,10 @@ package indexer;
 
 import etl.QueueItem;
 import indexer.tokenizer.TokenStrategy;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.BsonValue;
@@ -22,34 +23,38 @@ public final class InvertedIndexer {
     }
 
     public void tokenizeToQueue(QueueItem.DocumentBatch from, BlockingQueue<QueueItem> to) throws InterruptedException {
-        Object2ObjectOpenHashMap<String, IntArrayList> uniqueTokens = new Object2ObjectOpenHashMap<>(262144);
-        ObjectOpenHashSet<String> uniqueTokensPerDoc = new ObjectOpenHashSet<>(256);
+        Object2ObjectOpenHashMap<String, LongArrayList> uniqueTokens = new Object2ObjectOpenHashMap<>(262144);
+        Object2IntOpenHashMap<String> tokenCountPerDoc = new Object2IntOpenHashMap<>(256); // Stores term frequency
 
         List<BsonDocument> docs = from.documents();
         int batchSize = docs.size();
 
         UUID[] docIds = new UUID[batchSize];
-        int docIndex = 0;
+        int docIndex = 0; // Array index corresponding to docIds
 
-        // This is the looping a batch of 5k documents
         for (BsonDocument doc : docs) {
-            // Mapping the UUIDs to an array
-            docIds[docIndex] = doc.getBinary("_id").asUuid();
+            docIds[docIndex] = doc.getBinary("_id").asUuid(); // Mapping the UUIDs to an array
 
-            uniqueTokensPerDoc.clear(); // clear so next batch is clean
+            tokenCountPerDoc.clear(); // clear for the next batch
 
-            // This is looping each field in the individual docuemnts
+            // Loops each field in the individual docuemnts
             for (Map.Entry<String, BsonValue> field : doc.entrySet()) {
                 if (field.getKey().equals("_id"))
                     continue;
 
-                if (field.getValue() instanceof BsonString str)
-                    tk.toTokens(str.getValue(), uniqueTokensPerDoc);
+                if (field.getValue() instanceof BsonString str) {
+                    for (String valid : tk.toTokens(str.getValue()))
+                        tokenCountPerDoc.addTo(valid, 1);
+                }
             }
 
-            // Maps ids to tokens from that document
-            for (String token : uniqueTokensPerDoc)
-                uniqueTokens.computeIfAbsent(token, k -> new IntArrayList()).add(docIndex);
+            // Contains token : document index + TF
+            for (Object2IntMap.Entry<String> entry : tokenCountPerDoc.object2IntEntrySet()) {
+                String token = entry.getKey();
+                int tf = entry.getIntValue();
+
+                uniqueTokens.computeIfAbsent(token, k -> new LongArrayList()).add(pack(docIndex, tf));
+            }
 
             docIndex++;
         }
@@ -59,6 +64,11 @@ public final class InvertedIndexer {
 
     public List<String> tokenizeKeyWords(String input) {
         return tk.toTokens(input);
+    }
+
+    // Stores the document index into the first half and the term frequency into the second
+    private static long pack(int docIndex, int tf) {
+        return ((long) docIndex << 32) | (tf & 0xFFFFFFFFL);
     }
 
 }

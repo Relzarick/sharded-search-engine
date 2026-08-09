@@ -1,8 +1,11 @@
 import { SearchBar } from "./search.js";
-import { ResultsTable } from "./results.js";
+import { ResultsTable } from "./table/results-table.js";
 import { ColumnFilter, ValueFilter } from "./filter.js";
 import { Pagination } from "./pagination.js";
 import { StatusNotifier, NotificationSource } from "./notifier.js";
+import { HIDDEN_ID_KEY } from "./commons.js";
+
+const DEFAULT_PAGE_SIZE = 75;
 
 export class SearchService {
   constructor(baseUrl = "/search") {
@@ -10,7 +13,7 @@ export class SearchService {
     this.activeController = null;
   }
 
-  async search(query, offset = 0, size = 75) {
+  async search(query, offset = 0, size = DEFAULT_PAGE_SIZE) {
     this.activeController?.abort();
     this.activeController = new AbortController();
 
@@ -41,12 +44,8 @@ const setVisibility = (el, isVisible) => {
   if (el) el.hidden = !isVisible;
 };
 
-const isDateString = (val) => {
-  if (typeof val !== "string") return false;
-  if (!isNaN(Number(val))) return false;
-  if (isNaN(Date.parse(val))) return false;
-  return val.includes("-") || val.includes("/");
-};
+const isDateString = (val) =>
+  typeof val === "string" && isNaN(Number(val)) && !isNaN(Date.parse(val)) && (val.includes("-") || val.includes("/"));
 
 export class SearchResultsView {
   constructor({
@@ -75,8 +74,8 @@ export class SearchResultsView {
         body: $("[data-table-body]"),
       },
       {
-        onHeaderReorder: (headers) => onHeaderReorder(headers),
-        onHeaderAutoFit: (visibleSet) => onHeaderAutoFit(visibleSet),
+        onHeaderReorder,
+        onHeaderAutoFit,
         onRowCopy: (row) => {
           navigator.clipboard.writeText(JSON.stringify(row, null, 2));
           this.notifier.notify(NotificationSource.ROW_COPY);
@@ -94,8 +93,8 @@ export class SearchResultsView {
         alignTo: $(".table-frame"),
       },
       {
-        onToggle: (header, checked) => onHeaderToggle(header, checked),
-        onToggleAll: (checked) => onToggleAllHeaders(checked),
+        onToggle: onHeaderToggle,
+        onToggleAll: onToggleAllHeaders,
       },
     );
 
@@ -115,11 +114,8 @@ export class SearchResultsView {
   }
 
   notifySearchResults(count) {
-    if (count === 0) {
-      this.notifier.notify(NotificationSource.NO_RESULTS);
-    } else {
-      this.notifier.notify(NotificationSource.SEARCH_RESULTS, count);
-    }
+    if (count === 0) return this.notifier.notify(NotificationSource.NO_RESULTS);
+    this.notifier.notify(NotificationSource.SEARCH_RESULTS, count);
   }
 
   toggleFullscreen() {
@@ -163,7 +159,7 @@ export class SearchResultsView {
     if (!hasColumns) return;
 
     const filteredData = this.valueFilter.filterData(state.data);
-    this.grid.render(filteredData, state.headers, state.visibleHeaders);
+    this.grid.render(filteredData, state.headers, state.visibleHeaders, { term: state.lastQuery, page: state.page });
   }
 
   finishRender(state) {
@@ -186,7 +182,7 @@ const createInitialState = () => ({
   visibleHeaders: new Set(),
   lastQuery: null,
   page: 0,
-  pageSize: 75,
+  pageSize: DEFAULT_PAGE_SIZE,
   totalPages: null,
 });
 
@@ -270,8 +266,7 @@ export class SearchApp {
       let type = "string";
 
       if (typeof val === "number") type = "number";
-      else if (val instanceof Date) type = "date";
-      else if (isDateString(val)) type = "date";
+      else if (val instanceof Date || isDateString(val)) type = "date";
 
       schema.set(header, type);
     });
@@ -302,7 +297,7 @@ export class SearchApp {
       return;
     }
 
-    const incomingHeaders = Object.keys(rows[0]).filter((k) => k !== "_id");
+    const incomingHeaders = Object.keys(rows[0]).filter((k) => k !== HIDDEN_ID_KEY);
 
     if (!this.state.headers.length) {
       this.state.headers = incomingHeaders;

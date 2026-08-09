@@ -24,14 +24,14 @@ USER appuser
 EXPOSE 8080
 ENTRYPOINT ["java"]
 
-CMD ["-XX:MaxRAMPercentage=50.0", "-XX:+UseZGC", "-jar", "app.jar"]
+CMD ["-XX:MaxRAMPercentage=70.0", "-XX:+UseZGC", "-jar", "app.jar"]
 
-#CMD ["-XX:MaxRAMPercentage=50.0", \
+#CMD ["-XX:MaxRAMPercentage=70.0", \
 #      "-XX:+UseZGC", \
 #      "-agentpath:/app/async-profiler/lib/libasyncProfiler.so=start", \
 #      "-jar", "app.jar"]
 
-#CMD ["-XX:MaxRAMPercentage=50.0", \
+#CMD ["-XX:MaxRAMPercentage=70.0", \
 #     "-XX:+UseZGC", \
-#     "-XX:StartFlightRecording=duration=55s,filename=/tmp/recording.jfr,settings=profile", \
+#     "-XX:StartFlightRecording=duration=50s,filename=/tmp/recording.jfr,settings=profile", \
 #     "-jar", "app.jar"]

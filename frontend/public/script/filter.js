@@ -1,3 +1,5 @@
+import { humanizeHeader, TABLE_WRAPPER_SELECTOR } from "./commons.js";
+
 export class BaseFilter {
   constructor(elements) {
     this.elements = elements;
@@ -57,7 +59,7 @@ export class BaseFilter {
     const marginTop = 0;
     const top = alignRect.top + marginTop;
 
-    const scrollEl = alignEl.querySelector(".table-wrapper") || alignEl;
+    const scrollEl = alignEl.querySelector(TABLE_WRAPPER_SELECTOR) || alignEl;
     let scrollbarWidth = 0;
 
     if (scrollEl) {
@@ -103,22 +105,11 @@ export class ColumnFilter extends BaseFilter {
 
     this.elements.selectAll?.addEventListener("change", (e) => {
       this.onToggleAll?.(e.target.checked);
-      this.elements.menu?.dispatchEvent(
-        new CustomEvent("column-filter-toggle-all", { detail: { checked: e.target.checked }, bubbles: true }),
-      );
     });
 
     this.elements.options?.addEventListener("change", (e) => {
       const checkbox = e.target.closest('input[type="checkbox"]');
-      if (checkbox?.dataset.header) {
-        this.onToggle?.(checkbox.dataset.header, checkbox.checked);
-        this.elements.menu?.dispatchEvent(
-          new CustomEvent("column-filter-toggle", {
-            detail: { header: checkbox.dataset.header, checked: checkbox.checked },
-            bubbles: true,
-          }),
-        );
-      }
+      if (checkbox?.dataset.header) this.onToggle?.(checkbox.dataset.header, checkbox.checked);
     });
   }
 
@@ -129,7 +120,7 @@ export class ColumnFilter extends BaseFilter {
           (header) => `
         <label class="filter-label">
           <input type="checkbox" data-header="${header}" ${visibleHeaders.has(header) ? "checked" : ""}>
-          <span>${header.replace(/_/g, " ")}</span>
+          <span>${humanizeHeader(header)}</span>
         </label>`,
         )
         .join("");
@@ -162,9 +153,9 @@ export class ColumnFilter extends BaseFilter {
 const VALUE_INPUT_DEBOUNCE_MS = 200;
 
 export class ValueFilter extends BaseFilter {
-  constructor(elements, { schema = new Map() } = {}) {
+  constructor(elements) {
     super(elements);
-    this.schema = schema instanceof Map ? schema : new Map(Object.entries(schema));
+    this.schema = new Map();
     this.filters = new Map();
     this.activeHeaders = new Set();
     this.headers = [];
@@ -236,7 +227,7 @@ export class ValueFilter extends BaseFilter {
 
     for (const child of this.container.children) {
       const header = child.dataset.header || "";
-      const displayString = header.replace(/_/g, " ").toLowerCase();
+      const displayString = humanizeHeader(header).toLowerCase();
       child.hidden = !displayString.includes(lowerTerm);
     }
   }
@@ -351,7 +342,7 @@ export class ValueFilter extends BaseFilter {
         <div class="value-field-header">
           <button type="button" class="value-chip" data-header="${safeHeader}">
             <span class="value-chip-label">
-              <span>${header.replace(/_/g, " ")}</span>
+              <span>${humanizeHeader(header)}</span>
               <span class="icon icon-chevron-down"></span>
             </span>
           </button>

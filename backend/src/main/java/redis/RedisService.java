@@ -5,12 +5,13 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
+import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
-import io.lettuce.core.output.IntegerOutput;
-import io.lettuce.core.protocol.CommandArgs;
-import io.lettuce.core.protocol.CommandType;
+import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -19,11 +20,9 @@ import java.util.concurrent.TimeoutException;
 
 public final class RedisService implements Index {
     private final RedisClient client;
-    private static final UUIDCodec CODEC = new UUIDCodecV3();
-
-    private final StatefulRedisConnection<String, UUID> connection;
-    private final RedisAsyncCommands<String, UUID> async;
-
+    private static final RedisCodec<Object, byte[]> CODEC = new IndexCodec();
+    private final StatefulRedisConnection<Object, byte[]> connection;
+    private final RedisAsyncCommands<Object, byte[]> async;
 
     public RedisService(String host) {
         client = RedisClient.create(RedisURI.Builder.redis(host, 6379).build());
@@ -33,28 +32,16 @@ public final class RedisService implements Index {
     }
 
     @Override
-    public void set(String key, UUID[] docs) {
-        final int CHUNK_SIZE = 512;
-        int len = docs.length;
+    public void set(String key, ByteArrayList postings) {
+        int count = postings.size() / 20;
+        byte[][] members = new byte[count][];
 
-        // If it is small enough, send it directly to avoid chunking
-        if (len <= CHUNK_SIZE) {
-            CommandArgs<String, UUID> args = new CommandArgs<>(CODEC).addKey(key).addValues(docs);
-            async.dispatch(CommandType.SADD, new IntegerOutput<>(CODEC), args);
-
-            return;
+        for (int i = 0; i < count; i++) {
+            members[i] = new byte[20];
+            postings.getElements(i * 20, members[i], 0, 20);
         }
 
-        for (int i = 0; i < len; i += CHUNK_SIZE) {
-            int end = Math.min(len, i + CHUNK_SIZE);
-
-            CommandArgs<String, UUID> args = new CommandArgs<>(CODEC).addKey(key);
-
-            for (int j = i; j < end; j++)
-                args.addValues(docs[j]);
-
-            async.dispatch(CommandType.SADD, new IntegerOutput<>(CODEC), args);
-        }
+        async.sadd(key, members);
     }
 
     @Override
@@ -75,11 +62,22 @@ public final class RedisService implements Index {
     }
 
     @Override
-    public Set<UUID> retrieve(String key) throws ExecutionException, InterruptedException {
-        RedisFuture<Set<UUID>> future = async.smembers(key);
+    public List<Posting> retrieve(String key) throws ExecutionException, InterruptedException {
+        RedisFuture<Set<byte[]>> future = async.smembers(key);
         connection.flushCommands();
 
-        return future.get();
+        Set<byte[]> raw = future.get();
+        List<Posting> postings = new ArrayList<>(raw.size());
+
+        for (byte[] b : raw) {
+            ByteBuffer buf = ByteBuffer.wrap(b);
+            long msb = buf.getLong();
+            long lsb = buf.getLong();
+            int tf = buf.getInt();
+            postings.add(new Posting(new UUID(msb, lsb), tf));
+        }
+
+        return postings;
     }
 
     @Override
@@ -88,39 +86,55 @@ public final class RedisService implements Index {
         client.close();
     }
 
-    private static class UUIDCodecV3 implements UUIDCodec {
+    /**
+     * Codec handles mixed key types (String tokens, UUID fallback) and
+     * packs Posting values into a fixed 20-byte layout: 16-byte UUID + 4-byte int TF.
+     */
+    private static class IndexCodec implements RedisCodec<Object, byte[]> {
+        private static final int VALUE_SIZE = 20;
         private final StringCodec stringCodec = StringCodec.UTF8;
 
         @Override
-        public ByteBuffer encodeKey(String key) {
-            return stringCodec.encodeKey(key);
+        public ByteBuffer encodeKey(Object key) {
+            if (key instanceof UUID uuid) {
+                ByteBuffer buffer = ByteBuffer.allocate(16);
+                buffer.putLong(uuid.getMostSignificantBits());
+                buffer.putLong(uuid.getLeastSignificantBits());
+                buffer.flip();
+                return buffer;
+            }
+            return stringCodec.encodeKey((String) key);
         }
 
         @Override
-        public ByteBuffer encodeValue(UUID value) {
-            if (value == null)
-                return ByteBuffer.allocate(0);
+        public Object decodeKey(ByteBuffer bytes) {
+            if (bytes != null && bytes.remaining() == 16) {
+                long msb = bytes.getLong(bytes.position());
+                long lsb = bytes.getLong(bytes.position() + 8);
 
-            ByteBuffer buffer = ByteBuffer.allocate(16);
-            buffer.putLong(value.getMostSignificantBits());
-            buffer.putLong(value.getLeastSignificantBits());
-            buffer.flip();
+                int version = (int) ((msb >>> 12) & 0x0F);
+                int variant = (int) ((lsb >>> 62) & 0x03);
 
-            return buffer;
-        }
-
-        @Override
-        public String decodeKey(ByteBuffer bytes) {
+                if (version == 7 && variant == 2) {
+                    bytes.position(bytes.position() + 16);
+                    return new UUID(msb, lsb);
+                }
+            }
             return stringCodec.decodeKey(bytes);
         }
 
         @Override
-        public UUID decodeValue(ByteBuffer bytes) {
-            if (bytes == null || bytes.remaining() != 16)
-                return null;
-
-            return new UUID(bytes.getLong(), bytes.getLong());
+        public ByteBuffer encodeValue(byte[] value) {
+            return ByteBuffer.wrap(value);
         }
+
+        @Override
+        public byte[] decodeValue(ByteBuffer bytes) {
+            byte[] value = new byte[VALUE_SIZE];
+            bytes.get(value);
+            return value;
+        }
+
     }
 
 }

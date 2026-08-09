@@ -34,17 +34,19 @@ services:
     depends_on:
       backend:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: .5g
 
   db:
     container_name: mongrel
     image: mongo:8.3
     logging:
-      driver: "none"
-    command: [
-      "--wiredTigerCollectionBlockCompressor", "zstd",
-      "--wiredTigerJournalCompressor", "zstd",
-      "--journalCommitInterval", "500"
-    ]
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "27017:27017"
     volumes:
@@ -53,17 +55,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 1.5G
 
   redis1:
     container_name: r1
     image: redis:8.8-alpine
     healthcheck:
-      test: [ "CMD-SHELL", "redis-cli info persistence | grep -q '^loading:0'" ]
-      interval: 1m30s
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
       timeout: 3s
       retries: 5
-      start_period: 30s
+      start_period: 5s
       start_interval: 1s
     ports:
       - "6379:6379"
@@ -72,17 +74,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1.5G
+          memory: 1G
 
   redis2:
     container_name: r2
     image: redis:8.8-alpine
     healthcheck:
-      test: [ "CMD-SHELL", "redis-cli info persistence | grep -q '^loading:0'" ]
-      interval: 1m30s
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
       timeout: 3s
       retries: 5
-      start_period: 30s
+      start_period: 5s
       start_interval: 1s
     ports:
       - "6380:6379"
@@ -91,17 +93,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1.5G
+          memory: 1G
 
   redis3:
     container_name: r3
     image: redis:8.8-alpine
     healthcheck:
-      test: [ "CMD-SHELL", "redis-cli info persistence | grep -q '^loading:0'" ]
-      interval: 1m30s
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
       timeout: 3s
       retries: 5
-      start_period: 30s
+      start_period: 5s
       start_interval: 1s
     ports:
       - "6381:6379"
@@ -110,17 +112,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1.5G
+          memory: 1G
 
   redis4:
     container_name: r4
     image: redis:8.8-alpine
     healthcheck:
-      test: [ "CMD-SHELL", "redis-cli info persistence | grep -q '^loading:0'" ]
-      interval: 1m30s
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
       timeout: 3s
       retries: 5
-      start_period: 30s
+      start_period: 5s
       start_interval: 1s
     ports:
       - "6382:6379"
@@ -129,7 +131,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1.5G
+          memory: 1G
 
 volumes:
   mongo_data:

@@ -48,7 +48,7 @@ public final class CreateWorkers {
     }
 
     /**
-     * Parser threadPool feeds two queues: mongo and indxer
+     * Parser threadPool feeds two queues: mongo and indexer
      * Indexer threadPool takes from the queue and feeds redis
      */
     private CompletableFuture<Void> runProducers(CsvParser parser, InvertedIndexer indexer) {

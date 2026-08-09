@@ -1,9 +1,11 @@
 package redis;
 
 import etl.CommandQueue;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -19,37 +21,59 @@ public class RedisShardRouter implements AutoCloseable {
         };
     }
 
-    public void routeToRedis(Object2ObjectOpenHashMap<String, IntArrayList> UniqueTokens, UUID[] UUIDs) throws InterruptedException {
+    public void routeToRedis(Object2ObjectOpenHashMap<String, LongArrayList> UniqueTokens, UUID[] UUIDs) throws InterruptedException {
         int estimatedSize = (int) Math.ceil((UniqueTokens.size() / (double) shards.length) * 1.33);
-        List<Map<String, UUID[]>> batches = new ArrayList<>(shards.length);
+        List<Map<String, ByteArrayList>> batches = new ArrayList<>(shards.length);
 
         // Sizes the hashMap to the size of dict divided by n containers plus a little extra
         for (int i = 0; i < shards.length; i++)
             batches.add(new HashMap<>(estimatedSize));
 
-        // Loops each token
-        for (Map.Entry<String, IntArrayList> entry : UniqueTokens.entrySet()) {
+        // Loops each row
+        for (Map.Entry<String, LongArrayList> entry : UniqueTokens.entrySet()) {
             int shardInstance = TokenHasher.hash(entry.getKey(), shards.length); // Hashing based on token
 
-            IntArrayList docIndexes = entry.getValue(); // Get docIndex
-            UUID[] mappedUUIDs = new UUID[docIndexes.size()];  // Documents that contains the token
+            LongArrayList unpacked = entry.getValue(); // Document index + term frequency
+            ByteArrayList postings = new ByteArrayList(unpacked.size() * 20);
+
+            byte[] scratch = new byte[20];
+            ByteBuffer buf = ByteBuffer.wrap(scratch);
 
             // Matches docIndex to UUIDs array
-            for (int i = 0; i < docIndexes.size(); i++)
-                mappedUUIDs[i] = UUIDs[docIndexes.getInt(i)];
+            for (int i = 0; i < unpacked.size(); i++) {
+                long packedVal = unpacked.getLong(i);
+                int docIndex = unpackDocIndex(packedVal);
+                UUID uuid = UUIDs[docIndex];
+                int tf = unpackTf(packedVal);
 
-            batches.get(shardInstance).put(entry.getKey(), mappedUUIDs);
+                buf.clear();
+                buf.putLong(uuid.getMostSignificantBits());
+                buf.putLong(uuid.getLeastSignificantBits());
+                buf.putInt(tf);
+
+                postings.addElements(postings.size(), scratch);
+            }
+
+            batches.get(shardInstance).put(entry.getKey(), postings);
         }
 
         UniqueTokens.clear(); // Clearing because its already copied to batches
 
         // Routes the hashed token into their respective shards
         for (int i = 0; i < shards.length; i++) {
-            Map<String, UUID[]> subBatch = batches.get(i);
+            Map<String, ByteArrayList> subBatch = batches.get(i);
 
             if (!subBatch.isEmpty())
                 shards[i].queueBatch(subBatch);
         }
+    }
+
+    private static int unpackDocIndex(long packed) {
+        return (int) (packed >>> 32);
+    }
+
+    private static int unpackTf(long packed) {
+        return (int) packed;
     }
 
     @Override
@@ -86,7 +110,7 @@ public class RedisShardRouter implements AutoCloseable {
 
                     CommandQueue.Commands cmd = (CommandQueue.Commands) item;
 
-                    for (Map.Entry<String, UUID[]> entry : cmd.batch().entrySet()) {
+                    for (Map.Entry<String, ByteArrayList> entry : cmd.batch().entrySet()) {
                         redis.set(entry.getKey(), entry.getValue());
                         count++;
 
@@ -103,7 +127,7 @@ public class RedisShardRouter implements AutoCloseable {
             }
         }
 
-        public void queueBatch(Map<String, UUID[]> batch) throws InterruptedException {
+        public void queueBatch(Map<String, ByteArrayList> batch) throws InterruptedException {
             queue.put(new CommandQueue.Commands(batch));
         }
 
