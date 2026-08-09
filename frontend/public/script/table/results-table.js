@@ -29,8 +29,15 @@ export class ResultsTable {
   }
 
   getRowKey(row) {
-    // Also registers the row so pin/copy lookups can resolve it by key later.
-    const key = `id:${row[HIDDEN_ID_KEY]}`;
+    const idValue = row[HIDDEN_ID_KEY];
+    // Object-shaped ids (e.g. Mongo extended JSON like {$binary: {base64, subType}}) need a
+    // stable, unique string - JSON.stringify gives us that. But the result contains quotes,
+    // braces, "=" padding, etc., which is unsafe to drop straight into an HTML attribute
+    // (data-row-id="...") or a CSS attribute selector (tr[data-row-id="..."]) - it would
+    // truncate the attribute or break the selector, which is why pin/copy silently failed on
+    // these ids. encodeURIComponent keeps it unique while making it safe for both.
+    const idString = idValue !== null && typeof idValue === "object" ? JSON.stringify(idValue) : idValue;
+    const key = `id:${encodeURIComponent(idString)}`;
     this.idToRowMap.set(key, row);
     return key;
   }
@@ -72,11 +79,9 @@ export class ResultsTable {
 
   getOrderedRows() {
     // Pins are global - always float, on every page, across every search term.
-    // Nothing here ever removes an entry automatically; only togglePinRow (an explicit
-    // unpin) does that.
+    // Nothing here ever removes an entry automatically
     const pinnedKeys = new Set(this.pinnedRows.keys());
     // Exclude any row from the page's own data that's already pinned, so it's never shown twice
-    // (this is what stops a duplicate when you page back to where the pin came from).
     const unpinned = (this.currentData || []).filter((row) => !pinnedKeys.has(this.getRowKey(row)));
     const pinned = [...this.pinnedRows.values()].map((entry) => entry.row);
     return [...pinned, ...unpinned];

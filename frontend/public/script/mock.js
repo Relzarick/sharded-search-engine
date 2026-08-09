@@ -27,7 +27,9 @@ export class MockSearchProvider {
     const prefix = query.trim() ? `${query.trim().toUpperCase()} — ` : "";
 
     return {
-      _id: 100 + index,
+      // Mimics Mongo extended JSON (e.g. {$binary: {base64, subType: "04"}})
+      _id: { $binary: { base64: btoa(`row-${100 + index}`), subType: "04" } },
+      id: 100 + index,
       title: `${prefix}Project ${num}`,
       vote_average: Number((5 + (index % 50) / 10).toFixed(1)),
       vote_count: 100 + index * 15,
