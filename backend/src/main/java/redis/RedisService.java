@@ -7,7 +7,8 @@ import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
-import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import search.PositionalPosting;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -32,13 +33,24 @@ public final class RedisService implements Index {
     }
 
     @Override
-    public void set(String key, ByteArrayList postings) {
-        int count = postings.size() / 20;
-        byte[][] members = new byte[count][];
+    public void set(String key, List<PositionalPosting> postings) {
+        byte[][] members = new byte[postings.size()][];
 
-        for (int i = 0; i < count; i++) {
-            members[i] = new byte[20];
-            postings.getElements(i * 20, members[i], 0, 20);
+        for (int i = 0; i < postings.size(); i++) {
+            PositionalPosting posting = postings.get(i);
+            IntArrayList positions = posting.positions();
+            int posCount = positions.size();
+
+            // 16 (UUID) + 4 (posCount) + 4 * posCount (positions)
+            ByteBuffer buf = ByteBuffer.allocate(20 + posCount * 4);
+            buf.putLong(posting.uuid().getMostSignificantBits());
+            buf.putLong(posting.uuid().getLeastSignificantBits());
+            buf.putInt(posCount);
+
+            for (int j = 0; j < posCount; j++)
+                buf.putInt(positions.getInt(j));
+
+            members[i] = buf.array();
         }
 
         async.sadd(key, members);
@@ -62,19 +74,24 @@ public final class RedisService implements Index {
     }
 
     @Override
-    public List<Posting> retrieve(String key) throws ExecutionException, InterruptedException {
+    public List<PositionalPosting> retrieve(String key) throws ExecutionException, InterruptedException {
         RedisFuture<Set<byte[]>> future = async.smembers(key);
         connection.flushCommands();
 
         Set<byte[]> raw = future.get();
-        List<Posting> postings = new ArrayList<>(raw.size());
+        List<PositionalPosting> postings = new ArrayList<>(raw.size());
 
         for (byte[] b : raw) {
             ByteBuffer buf = ByteBuffer.wrap(b);
             long msb = buf.getLong();
             long lsb = buf.getLong();
-            int tf = buf.getInt();
-            postings.add(new Posting(new UUID(msb, lsb), tf));
+            int posCount = buf.getInt();
+
+            IntArrayList positions = new IntArrayList(posCount);
+            for (int j = 0; j < posCount; j++)
+                positions.add(buf.getInt());
+
+            postings.add(new PositionalPosting(new UUID(msb, lsb), positions));
         }
 
         return postings;
@@ -86,12 +103,8 @@ public final class RedisService implements Index {
         client.close();
     }
 
-    /**
-     * Codec handles mixed key types (String tokens, UUID fallback) and
-     * packs Posting values into a fixed 20-byte layout: 16-byte UUID + 4-byte int TF.
-     */
+ 
     private static class IndexCodec implements RedisCodec<Object, byte[]> {
-        private static final int VALUE_SIZE = 20;
         private final StringCodec stringCodec = StringCodec.UTF8;
 
         @Override
@@ -130,7 +143,7 @@ public final class RedisService implements Index {
 
         @Override
         public byte[] decodeValue(ByteBuffer bytes) {
-            byte[] value = new byte[VALUE_SIZE];
+            byte[] value = new byte[bytes.remaining()];
             bytes.get(value);
             return value;
         }

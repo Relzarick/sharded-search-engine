@@ -1,6 +1,8 @@
 package search;
 
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import redis.Index;
 import redis.RedisService;
 import redis.TokenHasher;
@@ -21,8 +23,14 @@ public class RedisQueryService implements AutoCloseable {
         };
     }
 
+    /**
+     * Calculate Term Frequency from the size of position
+     *
+     * @return Count of intersected UUID and its position array
+     */
     public QueryResult fetchFromRedis(List<String> tokens) {
-        Map<UUID, Object2IntOpenHashMap<String>> docTermFreqs = new HashMap<>(); // How many time token appear in the doc
+        // Each doc might have multiple matching tokens hence the nested hashmap
+        Map<UUID, Object2ObjectOpenHashMap<String, IntArrayList>> docTermPos = new HashMap<>(); // Position of token
         Object2IntOpenHashMap<String> docFreqPerToken = new Object2IntOpenHashMap<>(); // How many doc contains the token
         Set<UUID> result = null;
 
@@ -30,7 +38,7 @@ public class RedisQueryService implements AutoCloseable {
             int instance = TokenHasher.hash(token, shards.length);
 
             Set<UUID> tokenUuids = new HashSet<>();
-            List<Index.Posting> postings;
+            List<PositionalPosting> postings;
 
             try {
                 postings = shards[instance].retrieve(token);
@@ -40,9 +48,11 @@ public class RedisQueryService implements AutoCloseable {
 
             docFreqPerToken.put(token, postings.size());
 
-            for (Index.Posting doc : postings) {
-                tokenUuids.add(doc.docId());
-                docTermFreqs.computeIfAbsent(doc.docId(), k -> new Object2IntOpenHashMap<>()).put(token, doc.termFreq());
+            for (PositionalPosting doc : postings) {
+                tokenUuids.add(doc.uuid());
+                docTermPos
+                        .computeIfAbsent(doc.uuid(), k -> new Object2ObjectOpenHashMap<>())
+                        .put(token, doc.positions());
             }
 
             if (result == null) // Stores the first result
@@ -54,9 +64,9 @@ public class RedisQueryService implements AutoCloseable {
         }
 
         Set<UUID> finalDocs = (result == null) ? Set.of() : result;
-        docTermFreqs.keySet().retainAll(finalDocs);
+        docTermPos.keySet().retainAll(finalDocs);
 
-        return new QueryResult(docTermFreqs, docFreqPerToken);
+        return new QueryResult(docTermPos, docFreqPerToken);
     }
 
     @Override

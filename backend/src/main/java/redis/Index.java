@@ -1,9 +1,8 @@
 package redis;
 
-import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import search.PositionalPosting;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -14,24 +13,16 @@ public interface Index extends AutoCloseable {
      *
      * @param postings Stores 2 values, its UUID and its matching term frequency
      */
-    void set(String key, ByteArrayList postings);
+    void set(String key, List<PositionalPosting> postings);
 
     void flush();
 
     /**
      *
-     * @param key Takes in a token and returns
-     * @return The internal _id & term frequency
+     * @return The internal _id & position of the token in the doc
      */
-    List<Posting> retrieve(String key) throws ExecutionException, InterruptedException;
+    List<PositionalPosting> retrieve(String key) throws ExecutionException, InterruptedException;
 
     void close();
 
-    /**
-     *
-     * @param docId    Internal _id of each document
-     * @param termFreq Occurence of the token
-     */
-    record Posting(UUID docId, int termFreq) {
-    }
 }

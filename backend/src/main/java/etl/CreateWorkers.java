@@ -153,7 +153,7 @@ public final class CreateWorkers {
 
                         QueueItem.IndexerBatch batch = (QueueItem.IndexerBatch) item;
 
-                        router.routeToRedis(batch.dict(), batch.docIds());
+                        router.routeToRedis(batch.term(), batch.uuids());
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

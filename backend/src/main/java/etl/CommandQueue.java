@@ -1,11 +1,12 @@
 package etl;
 
-import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import search.PositionalPosting;
 
+import java.util.List;
 import java.util.Map;
 
 public interface CommandQueue {
-    record Commands(Map<String, ByteArrayList> batch) implements CommandQueue {
+    record Commands(Map<String, List<PositionalPosting>> batch) implements CommandQueue {
     }
 
     record PoisonPill() implements CommandQueue {
