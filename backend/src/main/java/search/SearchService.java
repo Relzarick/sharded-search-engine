@@ -3,6 +3,8 @@ package search;
 import indexer.InvertedIndexer;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntArrays;
+import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import mongo.Repository;
@@ -42,7 +44,7 @@ public class SearchService {
     }
 
     private List<BsonDocument> reorder(List<BsonDocument> documents, List<UUID> rankedOrder) {
-        Map<UUID, BsonDocument> byId = new HashMap<>(documents.size());
+        Map<UUID, BsonDocument> byId = new HashMap<>((int) (documents.size() / 0.75) + 1);
 
         for (BsonDocument doc : documents)
             byId.put(doc.getBinary("_id").asUuid(UuidRepresentation.STANDARD), doc);
@@ -59,7 +61,7 @@ public class SearchService {
     }
 
     private List<UUID> rankResults(QueryResult result, List<String> queryTokens, long totalDocCount, int offset, int size) {
-        Map<UUID, Double> tokenScore = new HashMap<>();
+        Object2DoubleOpenHashMap<UUID> tokenScore = new Object2DoubleOpenHashMap<>();
 
         for (Map.Entry<UUID, Object2ObjectOpenHashMap<String, IntArrayList>> doc : result.docTermPos().entrySet()) {
             Object2ObjectOpenHashMap<String, IntArrayList> tokenPosition = doc.getValue();
@@ -91,15 +93,20 @@ public class SearchService {
             tokenScore.put(uuid, score);
         }
 
-        List<UUID> keys = new ArrayList<>(tokenScore.keySet());
-        keys.sort((a, b) -> Double.compare(tokenScore.get(b), tokenScore.get(a)));
+        List<Object2DoubleMap.Entry<UUID>> entries = new ArrayList<>(tokenScore.object2DoubleEntrySet());
+        entries.sort((a, b) -> Double.compare(b.getDoubleValue(), a.getDoubleValue()));
 
-        if (offset >= keys.size())
+        if (offset >= entries.size())
             return List.of();
 
-        int end = Math.min(offset + size, keys.size());
+        int end = Math.min(offset + size, entries.size());
 
-        return keys.subList(offset, end);
+        List<UUID> keys = new ArrayList<>(end - offset);
+        
+        for (Object2DoubleMap.Entry<UUID> entry : entries.subList(offset, end))
+            keys.add(entry.getKey());
+
+        return keys;
     }
 
     // AI magic algo
@@ -125,36 +132,45 @@ public class SearchService {
             }
         }
 
-        // 2. No exact phrase — fall back to general min-gap (order-agnostic proximity)
+        // 2. No exact phrase — fall back to general min-gap (order-agnostic proximity).
         // Smallest range containing at least one position from every query token's list.
-        List<int[]> tagged = new ArrayList<>(); // [position, tokenIndex]
+        int totalPositions = 0;
+        for (String token : queryTokens) {
+            IntArrayList positions = tokenPosition.get(token);
+            if (positions == null)
+                return NO_MATCH; // token missing entirely for this doc — shouldn't happen post-intersection, but defensive
+            totalPositions += positions.size();
+        }
+
+        long[] tagged = new long[totalPositions];
+        int idx = 0;
 
         for (int i = 0; i < queryTokens.size(); i++) {
             IntArrayList positions = tokenPosition.get(queryTokens.get(i));
-            if (positions == null)
-                return NO_MATCH; // token missing entirely for this doc — shouldn't happen post-intersection, but defensive
-
             for (int p : positions)
-                tagged.add(new int[]{p, i});
+                tagged[idx++] = ((long) p << 32) | (i & 0xFFFFFFFFL);
         }
 
-        tagged.sort((a, b) -> Integer.compare(a[0], b[0]));
+        Arrays.sort(tagged); // sorts by position first since it occupies the high bits
 
         int[] countPerToken = new int[queryTokens.size()];
         int distinctCovered = 0;
         int left = 0;
         int minGap = NO_MATCH;
 
-        for (int[] ints : tagged) {
-            int tokenIdx = ints[1];
+        for (long entry : tagged) {
+            int position = (int) (entry >>> 32);
+            int tokenIdx = (int) entry;
+
             if (countPerToken[tokenIdx]++ == 0)
                 distinctCovered++;
 
             while (distinctCovered == queryTokens.size()) {
-                int gap = ints[0] - tagged.get(left)[0];
+                int leftPosition = (int) (tagged[left] >>> 32);
+                int gap = position - leftPosition;
                 minGap = Math.min(minGap, gap);
 
-                int leftTokenIdx = tagged.get(left)[1];
+                int leftTokenIdx = (int) tagged[left];
                 if (--countPerToken[leftTokenIdx] == 0)
                     distinctCovered--;
                 left++;

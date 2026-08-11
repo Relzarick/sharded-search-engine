@@ -1,4 +1,4 @@
-# Distributed Search Engine
+# Sharded Search Engine
 
 Visit the site at: https://telemachus.relzarick.com/
 
@@ -17,7 +17,7 @@ after the initial ingestion.
 
 ## How It Works
 
-### Ingestion is processed through a multi-stage pipeline:
+### Ingestion multi-stage pipeline:
 
 - Parse & Split: The CSV is read and split into two processing lines.
 
@@ -27,30 +27,45 @@ after the initial ingestion.
 
 - Redis Ingestion: Pushes those keywords into Redis, mapping each token to its document ID for quick lookups.
 
-### Look ups are ranked with the TF-IDF algorithm
+### Look up ranking algorithm
 
-- The index contains the term frequency of its token and is ranked with other variables such as total document count and
-  document frequency.
-- The frontend provides additonal client-side filtering using the header types.
-
-Adding phrase proximity or BM25 will require a big rewrite to the current ingestion pipeline so its under consideration.
+- The index stores the token mapped to a list of UUIDs and positions of occurence.
+- The data allows the system to sort and rank key words with the TF-IDF algorithm with phrase matching/ proximity
+  scoring.
+- Additonal client-side filtering, such as range filters or string omission, is determined by header types.
 
 ## Performance Benchmarks
 
-The dataset tested contained around 1.21 million CSV rows.
+The dataset tested contained around 1.23 million CSV rows in ~60.2s.
 
-- Total CSV Parse Time: ~2.3 seconds
+- Total CSV Parse Time: ~2.6 seconds
 
-- MongoDB Ingestion Speed: ~37,000 rows/sec (~32.7s total)
+- MongoDB Ingestion Speed: ~20,440 rows/sec (1.23M rows)
 
-- Keyword Indexing Speed: ~365,000 tokens/sec (~32.7s total)
+- Keyword Indexing Speed: ~1,023,851 tokens/sec (61.65M tokens)
 
-- Redis Ingestion Speed: ~365,300 commands/sec (~32.7s total, 11.96M SADD commands)
+- Redis Ingestion Speed: ~365,300 commands/sec (61.65M tokens)
 
-| Metric                   | Throughput         |
-|--------------------------|--------------------|
-| **Total Pipeline**       | ~33.8k RPS         |
-| **Parsing & Processing** | ~37.7k RPS         |
-| **Pure Mongo Operation** | ~37.0k RPS         |
-| **Indexing**             | ~365.0k tokens/sec |
-| **Redis Commands**       | ~365.3k cmds/sec   |
+| Metric              | Throughput        |
+|---------------------|-------------------|
+| **Total Pipeline**  | ~20.4k RPS        |
+| **CSV Parse**       | ~475k RPS         |
+| **Mongo Operation** | ~20.4k RPS        |
+| **Indexing**        | ~1.02M tokens/sec |
+| **Redis Commands**  | ~210.6k cmds/sec  |
+
+## Notes
+
+## Notes
+
+Using Redis for the inverted index was the wrong choice. I underestimated the sheer volume of write commands.
+
+The better choice would have been to use RocksDB instead for the index, and build a fresh Redis to hold the token → UUID
+list for querying.
+
+During ingestion, the system should use some sort of AI to analyze random contents of the data, building a short summary
+of the dataset for use at query time.
+
+This can then be used with another AI during query time, analyzing the user's input against this summary to insert more
+keywords into the query for better relevancy. This can also act as a secondary ranking signal.
+
