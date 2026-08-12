@@ -34,7 +34,7 @@ public class SearchService {
         long totalDoc = mongo.getCollection().estimatedDocumentCount();
 
         if (queryResult.docTermPos().isEmpty())
-            return "{count: 0, rows: []}";
+            return new DocumentResults(List.of()).jsonify(0);
 
         List<UUID> rankedResults = rankResults(queryResult, cleanedInput, totalDoc, offset, size);
         List<BsonDocument> unordered = mongo.fetchMany(rankedResults).documents();
@@ -102,7 +102,7 @@ public class SearchService {
         int end = Math.min(offset + size, entries.size());
 
         List<UUID> keys = new ArrayList<>(end - offset);
-        
+
         for (Object2DoubleMap.Entry<UUID> entry : entries.subList(offset, end))
             keys.add(entry.getKey());
 
