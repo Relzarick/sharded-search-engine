@@ -30,12 +30,8 @@ export class ResultsTable {
 
   getRowKey(row) {
     const idValue = row[HIDDEN_ID_KEY];
-    // Object-shaped ids (e.g. Mongo extended JSON like {$binary: {base64, subType}}) need a
-    // stable, unique string - JSON.stringify gives us that. But the result contains quotes,
-    // braces, "=" padding, etc., which is unsafe to drop straight into an HTML attribute
-    // (data-row-id="...") or a CSS attribute selector (tr[data-row-id="..."]) - it would
-    // truncate the attribute or break the selector, which is why pin/copy silently failed on
-    // these ids. encodeURIComponent keeps it unique while making it safe for both.
+    // Builds a stable, URL/attribute-safe string key from the row's id, handling both
+    // plain values and object-shaped ids (e.g. Mongo extended JSON).
     const idString = idValue !== null && typeof idValue === "object" ? JSON.stringify(idValue) : idValue;
     const key = `id:${encodeURIComponent(idString)}`;
     this.idToRowMap.set(key, row);
@@ -149,9 +145,6 @@ export class ResultsTable {
 
   reorderDOMRows() {
     const orderedRows = this.getOrderedRows();
-    const validKeys = new Set(orderedRows.map((row) => this.getRowKey(row)));
-
-    Render.removeStaleDOMRows(this.elements.body, validKeys);
     Render.syncDOMOrder(this.elements.body, orderedRows, (r) => this.getRowKey(r));
   }
 

@@ -1,5 +1,8 @@
 import { Render } from "./render.js";
 
+// Calls preventDefault only if the event supports it, avoiding console warnings on passive listeners.
+const preventIfCancelable = (e) => e.cancelable && e.preventDefault();
+
 // Handles all DOM event wiring for the results table (drag/drop, touch, hover-copy).
 export class TableEvents {
   constructor(tableInstance) {
@@ -46,11 +49,8 @@ export class TableEvents {
       });
       body.addEventListener("drop", (e) => this.handleRowDrop(e));
 
-      if (this.table.isMobile) {
-        this.initMobileRowTouch();
-      } else {
-        this.initDesktopHoverAndCopy();
-      }
+      if (this.table.isMobile) this.initMobileRowTouch();
+      else this.initDesktopHoverAndCopy();
     }
   }
 
@@ -157,7 +157,7 @@ export class TableEvents {
         if (!activeHeader) return;
         if (Math.abs(e.touches[0].clientX - startX) > 5) {
           isDragging = true;
-          if (e.cancelable) e.preventDefault();
+          preventIfCancelable(e);
         }
       },
       { passive: false },
@@ -233,7 +233,7 @@ export class TableEvents {
         if (activeDragRowId !== null) {
           if (Math.abs(e.touches[0].clientY - startY) > 5) {
             isDraggingRow = true;
-            if (e.cancelable) e.preventDefault();
+            preventIfCancelable(e);
           }
           return;
         }
@@ -260,7 +260,7 @@ export class TableEvents {
       clearTimer();
 
       if (longPressTriggered) {
-        if (e.cancelable) e.preventDefault();
+        preventIfCancelable(e);
         lastTapTime = 0;
         return;
       }
@@ -270,7 +270,7 @@ export class TableEvents {
       const currentRowId = tr.dataset.rowId;
 
       if (now - lastTapTime < 300 && lastTapRowId === currentRowId) {
-        if (e.cancelable) e.preventDefault();
+        preventIfCancelable(e);
         this.table.togglePinRow(tr);
         lastTapTime = 0;
         lastTapRowId = null;

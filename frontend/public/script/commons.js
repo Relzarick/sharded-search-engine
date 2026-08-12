@@ -6,4 +6,8 @@ export const HIDDEN_ID_KEY = "_id";
 
 export const TABLE_WRAPPER_SELECTOR = ".table-wrapper";
 
+export const SEARCH_ENDPOINT = "/search";
+
+export const DEFAULT_PAGE_SIZE = 75;
+
 export const humanizeHeader = (header) => header.replace(/_/g, " ");

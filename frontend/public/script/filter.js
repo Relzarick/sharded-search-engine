@@ -1,5 +1,7 @@
 import { humanizeHeader, TABLE_WRAPPER_SELECTOR } from "./commons.js";
 
+const escapeAttr = (val) => String(val ?? "").replace(/"/g, "&quot;");
+
 export class BaseFilter {
   constructor(elements) {
     this.elements = elements;
@@ -217,10 +219,6 @@ export class ValueFilter extends BaseFilter {
     };
   }
 
-  escapeAttr(val) {
-    return String(val ?? "").replace(/"/g, "&quot;");
-  }
-
   handleSearchInput(term) {
     if (!this.container) return;
     const lowerTerm = term.toLowerCase();
@@ -265,14 +263,11 @@ export class ValueFilter extends BaseFilter {
   }
 
   handleOperatorChange(header, mode) {
-    const filter = this.filters.get(header) || {};
-    this.filters.set(header, {
-      mode,
-      value: filter.value ?? "",
-      min: filter.min ?? null,
-      max: filter.max ?? null,
-    });
-    this.dispatchFilterChange(header, this.filters.get(header));
+    const prev = this.filters.get(header) || {};
+    const filter = { mode, value: prev.value ?? "", min: prev.min ?? null, max: prev.max ?? null };
+
+    this.filters.set(header, filter);
+    this.dispatchFilterChange(header, filter);
     this.render();
   }
 
@@ -289,10 +284,10 @@ export class ValueFilter extends BaseFilter {
 
   buildInputsHtml(header, filter, type) {
     if (!filter) return "";
-    const safeHeader = this.escapeAttr(header);
+    const safeHeader = escapeAttr(header);
 
     if (type === "string") {
-      return `<input type="text" class="value-field-input" data-header="${safeHeader}" data-role="value" value="${this.escapeAttr(filter.value)}">`;
+      return `<input type="text" class="value-field-input" data-header="${safeHeader}" data-role="value" value="${escapeAttr(filter.value)}">`;
     }
 
     const inputType = type === "date" ? "date" : "number";
@@ -300,16 +295,16 @@ export class ValueFilter extends BaseFilter {
 
     if (filter.mode === "range") {
       return `
-        <input type="${inputType}"${stepAttr} class="value-field-input" data-header="${safeHeader}" data-role="min" value="${this.escapeAttr(filter.min)}">
-        <input type="${inputType}"${stepAttr} class="value-field-input" data-header="${safeHeader}" data-role="max" value="${this.escapeAttr(filter.max)}">`;
+        <input type="${inputType}"${stepAttr} class="value-field-input" data-header="${safeHeader}" data-role="min" value="${escapeAttr(filter.min)}">
+        <input type="${inputType}"${stepAttr} class="value-field-input" data-header="${safeHeader}" data-role="max" value="${escapeAttr(filter.max)}">`;
     }
 
-    return `<input type="${inputType}"${stepAttr} class="value-field-input" data-header="${safeHeader}" data-role="value" value="${this.escapeAttr(filter.value)}">`;
+    return `<input type="${inputType}"${stepAttr} class="value-field-input" data-header="${safeHeader}" data-role="value" value="${escapeAttr(filter.value)}">`;
   }
 
   buildTypedFieldHtml(header, isActive, type) {
     const filter = this.filters.get(header);
-    const safeHeader = this.escapeAttr(header);
+    const safeHeader = escapeAttr(header);
 
     const operatorOptions =
       type === "string"
@@ -414,57 +409,46 @@ export class ValueFilter extends BaseFilter {
   }
 
   evaluateNumber(val, filter) {
-    const numVal = Number(val);
-    const isNumValid = val !== null && val !== "" && !isNaN(numVal);
-
-    if (filter.mode === "range") {
-      const minHasVal = filter.min !== null && filter.min !== "";
-      const maxHasVal = filter.max !== null && filter.max !== "";
-      if (!minHasVal && !maxHasVal) return true;
-
-      if (!isNumValid) return false;
-      if (minHasVal && numVal < Number(filter.min)) return false;
-      if (maxHasVal && numVal > Number(filter.max)) return false;
-      return true;
-    }
-
-    const targetHasVal = filter.value !== null && filter.value !== "";
-    if (!targetHasVal) return true;
-
-    if (!isNumValid) return false;
-    const targetNum = Number(filter.value);
-
-    if (filter.mode === "lt") return numVal < targetNum;
-    if (filter.mode === "gt") return numVal > targetNum;
-    return numVal === targetNum;
+    return this.evaluateComparable(val, filter, {
+      toComparable: Number,
+      hasValue: (v) => v !== null && v !== "",
+      isValid: (v) => v !== null && v !== "" && !isNaN(Number(v)),
+      equals: (a, b) => Number(a) === Number(b),
+    });
   }
 
   evaluateDate(val, filter) {
-    const cellTime = val ? new Date(val).getTime() : NaN;
-    const isDateValid = !isNaN(cellTime);
+    return this.evaluateComparable(val, filter, {
+      toComparable: (v) => new Date(v).getTime(),
+      hasValue: (v) => Boolean(v),
+      isValid: (v) => Boolean(v) && !isNaN(new Date(v).getTime()),
+      // Dates compare by day, not exact timestamp - two times on the same day should match.
+      equals: (a, b) => new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10),
+    });
+  }
+
+  // Shared range/single-value comparison logic for any type that can be reduced to a
+  // comparable number (via toComparable). Callers supply the type-specific rules.
+  evaluateComparable(val, filter, { toComparable, hasValue, isValid, equals }) {
+    const valIsValid = isValid(val);
+    const comparableVal = valIsValid ? toComparable(val) : null;
 
     if (filter.mode === "range") {
-      const minHasVal = Boolean(filter.min);
-      const maxHasVal = Boolean(filter.max);
+      const minHasVal = hasValue(filter.min);
+      const maxHasVal = hasValue(filter.max);
       if (!minHasVal && !maxHasVal) return true;
 
-      if (!isDateValid) return false;
-      if (minHasVal && cellTime < new Date(filter.min).getTime()) return false;
-      if (maxHasVal && cellTime > new Date(filter.max).getTime()) return false;
+      if (!valIsValid) return false;
+      if (minHasVal && comparableVal < toComparable(filter.min)) return false;
+      if (maxHasVal && comparableVal > toComparable(filter.max)) return false;
       return true;
     }
 
-    const targetHasVal = Boolean(filter.value);
-    if (!targetHasVal) return true;
+    if (!hasValue(filter.value)) return true;
+    if (!valIsValid) return false;
 
-    if (!isDateValid) return false;
-    const targetTime = new Date(filter.value).getTime();
-
-    if (filter.mode === "lt") return cellTime < targetTime;
-    if (filter.mode === "gt") return cellTime > targetTime;
-
-    const cellDateStr = new Date(cellTime).toISOString().slice(0, 10);
-    const targetDateStr = new Date(targetTime).toISOString().slice(0, 10);
-    return cellDateStr === targetDateStr;
+    if (filter.mode === "lt") return comparableVal < toComparable(filter.value);
+    if (filter.mode === "gt") return comparableVal > toComparable(filter.value);
+    return equals(val, filter.value);
   }
 }

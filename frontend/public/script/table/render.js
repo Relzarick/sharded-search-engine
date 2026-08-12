@@ -44,15 +44,13 @@ export class Render {
     });
   }
 
-  static removeStaleDOMRows(bodyEl, validKeys) {
+  static syncDOMOrder(bodyEl, orderedRows, getRowKey) {
     if (!bodyEl) return;
+    const validKeys = new Set(orderedRows.map(getRowKey));
     Array.from(bodyEl.querySelectorAll("tr")).forEach((tr) => {
       if (!validKeys.has(tr.dataset.rowId)) tr.remove();
     });
-  }
 
-  static syncDOMOrder(bodyEl, orderedRows, getRowKey) {
-    if (!bodyEl) return;
     const fragment = document.createDocumentFragment();
     for (const row of orderedRows) {
       const tr = bodyEl.querySelector(`tr[data-row-id="${getRowKey(row)}"]`);

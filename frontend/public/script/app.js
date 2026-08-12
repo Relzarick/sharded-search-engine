@@ -3,17 +3,19 @@ import { ResultsTable } from "./table/results-table.js";
 import { ColumnFilter, ValueFilter } from "./filter.js";
 import { Pagination } from "./pagination.js";
 import { StatusNotifier, NotificationSource } from "./notifier.js";
-import { HIDDEN_ID_KEY } from "./commons.js";
-
-const DEFAULT_PAGE_SIZE = 75;
+import { HIDDEN_ID_KEY, TABLE_WRAPPER_SELECTOR, SEARCH_ENDPOINT, DEFAULT_PAGE_SIZE } from "./commons.js";
 
 export class SearchService {
-  constructor(baseUrl = "/search") {
+  constructor(baseUrl = SEARCH_ENDPOINT) {
     this.baseUrl = baseUrl;
     this.activeController = null;
+    this.cache = new Map();
   }
 
   async search(query, offset = 0, size = DEFAULT_PAGE_SIZE) {
+    const cacheKey = `${query}::${offset}::${size}`;
+    if (this.cache.has(cacheKey)) return this.cache.get(cacheKey);
+
     this.activeController?.abort();
     this.activeController = new AbortController();
 
@@ -26,10 +28,9 @@ export class SearchService {
       const json = await res.json();
       this.activeController = null;
 
-      return {
-        rows: json.rows || [],
-        count: json.count,
-      };
+      const result = { rows: json.rows || [], count: json.count };
+      this.cache.set(cacheKey, result);
+      return result;
     } catch (err) {
       if (err.name === "AbortError") return { aborted: true, rows: [], count: 0 };
       this.activeController = null;
@@ -69,7 +70,7 @@ export class SearchResultsView {
 
     this.grid = new ResultsTable(
       {
-        wrapper: $(".table-wrapper"),
+        wrapper: $(TABLE_WRAPPER_SELECTOR),
         head: $("[data-table-head]"),
         body: $("[data-table-body]"),
       },
@@ -116,6 +117,10 @@ export class SearchResultsView {
   notifySearchResults(count) {
     if (count === 0) return this.notifier.notify(NotificationSource.NO_RESULTS);
     this.notifier.notify(NotificationSource.SEARCH_RESULTS, count);
+  }
+
+  notifyError() {
+    this.notifier.notify(NotificationSource.SERVER_ERROR);
   }
 
   toggleFullscreen() {
@@ -205,6 +210,8 @@ export class SearchApp {
   }
 
   async handleSearch(query) {
+    if (query === this.state.lastQuery) return;
+
     this.view.hideHeaderNotice();
     this.state.lastQuery = query;
     this.state.page = 0;
@@ -252,6 +259,7 @@ export class SearchApp {
       if (!response.aborted) this.processSearchResults(response);
     } catch (error) {
       console.error("Search failed:", error);
+      this.view.notifyError();
     } finally {
       this.view.setLoading(false);
     }

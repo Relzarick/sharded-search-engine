@@ -2,6 +2,7 @@ export const NotificationSource = Object.freeze({
   ROW_COPY: "ROW_COPY",
   NO_RESULTS: "NO_RESULTS",
   SEARCH_RESULTS: "SEARCH_RESULTS",
+  SERVER_ERROR: "SERVER_ERROR",
 });
 
 export class StatusNotifier {
@@ -9,6 +10,7 @@ export class StatusNotifier {
     [NotificationSource.ROW_COPY]: "Copied row to clipboard",
     [NotificationSource.NO_RESULTS]: "No results found",
     [NotificationSource.SEARCH_RESULTS]: (count) => `Found ${count.toLocaleString()} result${count === 1 ? "" : "s"}`,
+    [NotificationSource.SERVER_ERROR]: "Server is down or no longer available.",
   };
 
   constructor(element, displayDurationMs = 2500) {

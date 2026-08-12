@@ -47,7 +47,7 @@ The dataset tested contained around 1.23 million CSV rows in ~60.2s.
 - Redis Ingestion Speed: ~365,300 commands/sec (61.65M tokens)
 
 | Metric              | Throughput        |
-|---------------------|-------------------|
+| ------------------- | ----------------- |
 | **Total Pipeline**  | ~20.4k RPS        |
 | **CSV Parse**       | ~475k RPS         |
 | **Mongo Operation** | ~20.4k RPS        |
@@ -56,16 +56,11 @@ The dataset tested contained around 1.23 million CSV rows in ~60.2s.
 
 ## Notes
 
-## Notes
-
 Using Redis for the inverted index was the wrong choice. I underestimated the sheer volume of write commands.
 
-The better choice would have been to use RocksDB instead for the index, and build a fresh Redis to hold the token → UUID
-list for querying.
+The better alternative would have been to use RocksDB instead for the index, and configure Redis to hold the token → UUID list for querying instead.
 
-During ingestion, the system should use some sort of AI to analyze random contents of the data, building a short summary
-of the dataset for use at query time.
+During ingestion, the system should use some sort of AI to analyze random contents of the data, building a short summary of the dataset for use at query time.
 
 This can then be used with another AI during query time, analyzing the user's input against this summary to insert more
 keywords into the query for better relevancy. This can also act as a secondary ranking signal.
-
