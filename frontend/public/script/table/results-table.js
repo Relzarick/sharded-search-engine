@@ -96,7 +96,7 @@ export class ResultsTable {
 
     if (!this.copyContainer.querySelector("#roaming-copy-btn")) {
       this.copyContainer.innerHTML = `
-        <div class="pin-copy-item roaming-copy-btn" id="roaming-copy-btn">
+        <div class="pin-copy-item" id="roaming-copy-btn">
           <button type="button" class="btn-pin-copy" aria-label="Copy row">
             <span class="icon icon-lg icon-copy" aria-hidden="true"></span>
           </button>

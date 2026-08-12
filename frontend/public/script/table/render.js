@@ -38,7 +38,7 @@ export class Render {
 
     bodyEl.querySelectorAll("tr.pinned").forEach((tr) => {
       for (const td of tr.children) {
-        Object.assign(td.style, { position: "sticky", top: `${currentTop}px`, zIndex: "2" });
+        td.style.top = `${currentTop}px`;
       }
       currentTop += tr.offsetHeight;
     });

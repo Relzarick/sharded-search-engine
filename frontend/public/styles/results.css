@@ -95,28 +95,6 @@
 /* =========================================
    COMPONENTS & DATA TABLE
    ========================================= */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 1rem 1.6rem;
-
-  font: inherit;
-  font-size: 1.8rem;
-  font-weight: 600;
-
-  color: var(--text-secondary);
-  background-color: color-mix(in srgb, var(--bg-card) 94%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: all var(--theme-transition-quick);
-}
-
-.btn:hover {
-  border-color: color-mix(in srgb, var(--border-color) 60%, var(--color-accent));
-}
-
 .output-table {
   width: 100%;
   table-layout: auto;
@@ -173,11 +151,12 @@
 }
 
 .output-table tbody tr.pinned td {
+  position: sticky;
+  z-index: 2;
   background-color: color-mix(in srgb, var(--color-accent) 8%, var(--bg-main));
 }
 
 .output-table tbody tr.pinned td.pin-cell {
-  position: relative;
   background-color: color-mix(in srgb, var(--bg-main) 60%, var(--bg-card));
   border-right: 2px solid var(--border-color);
 }

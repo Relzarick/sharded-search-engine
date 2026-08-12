@@ -77,6 +77,12 @@
   display: flex;
 }
 
+.filter-menu.is-positioned,
+.value-menu.is-positioned {
+  position: fixed;
+  transform: none;
+}
+
 /* =========================================
    COLUMN FILTER — SEARCH INPUT
    ========================================= */

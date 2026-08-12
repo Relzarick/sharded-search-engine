@@ -47,6 +47,7 @@ export class BaseFilter {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
     }
+    this.elements.menu?.classList.remove("is-positioned");
   }
 
   positionMenu() {
@@ -75,14 +76,10 @@ export class BaseFilter {
     const baseRight = Math.max(0, viewportWidth - alignRect.right);
     const right = baseRight + scrollbarWidth;
 
+    this.elements.menu.classList.add("is-positioned");
     Object.assign(this.elements.menu.style, {
-      position: "fixed",
       top: `${top}px`,
       right: `${right}px`,
-      left: "auto",
-      bottom: "auto",
-      margin: "0",
-      transform: "none",
     });
   }
 }
