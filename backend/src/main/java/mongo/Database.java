@@ -65,8 +65,7 @@ public final class Database implements Repository {
 
     @Override
     public void close() {
-        if (client != null)
-            client.close();
+        client.close();
     }
 
 }
