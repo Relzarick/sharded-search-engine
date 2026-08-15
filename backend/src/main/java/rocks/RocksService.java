@@ -1,14 +1,16 @@
 package rocks;
 
 import etl.CommandQueue;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import org.rocksdb.*;
 import search.PositionalPosting;
 
 import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 
 public class RocksService implements AutoCloseable {
     Options options;
@@ -33,11 +35,10 @@ public class RocksService implements AutoCloseable {
                 for (PositionalPosting posting : entry.getValue()) {
                     UUID uuid = posting.uuid();
 
-                    // Token + SEP + UUID
+                    // TOKEN + SEP + UUID
                     ByteBuffer buf = ByteBuffer.allocate(token.length + 1 + 16);
 
-                    buf.put(token);
-                    buf.put(SEP);
+                    buf.put(token).put(SEP);
                     buf.putLong(uuid.getMostSignificantBits());
                     buf.putLong(uuid.getLeastSignificantBits());
 
@@ -45,13 +46,11 @@ public class RocksService implements AutoCloseable {
 
                     int[] positions = posting.positions().toIntArray();
 
-                    // Count + Posistions
-                    ByteBuffer pBuf = ByteBuffer.allocate(4 + positions.length * 4);
+                    // POSITIONS
+                    ByteBuffer posBuf = ByteBuffer.allocate(positions.length * 4);
+                    posBuf.asIntBuffer().put(positions);
 
-                    pBuf.putInt(positions.length);
-                    pBuf.asIntBuffer().put(positions);
-
-                    byte[] value = pBuf.array();
+                    byte[] value = posBuf.array();
 
                     batch.put(key, value);
                 }
@@ -61,8 +60,51 @@ public class RocksService implements AutoCloseable {
         }
     }
 
-    public List<PositionalPosting> retrieve(String key) throws ExecutionException, InterruptedException {
-        return List.of();
+    public List<PositionalPosting> retrieve(String input) {
+        byte[] token = input.getBytes();
+
+        // TOKEN + SEP
+        ByteBuffer buf = ByteBuffer.allocate(token.length + 1);
+        buf.put(token).put(SEP);
+
+        byte[] prefix = buf.array();
+        List<PositionalPosting> results = new ArrayList<>();
+
+        try (RocksIterator iter = db.newIterator()) {
+            for (iter.seek(prefix); iter.isValid(); iter.next()) {
+                byte[] key = iter.key();
+
+                if (!checkPrefix(key, prefix))
+                    break;
+
+                ByteBuffer keyBuf = ByteBuffer.wrap(key, prefix.length, key.length - prefix.length);
+                long msb = keyBuf.getLong();
+                long lsb = keyBuf.getLong();
+                UUID uuid = new UUID(msb, lsb);
+
+                IntBuffer intBuf = ByteBuffer.wrap(iter.value()).asIntBuffer();
+                int[] pos = new int[intBuf.remaining()];
+                intBuf.get(pos);
+
+                results.add(new PositionalPosting(uuid, new IntArrayList(pos)));
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Ensures that key matches the prefix
+     */
+    private boolean checkPrefix(byte[] key, byte[] prefix) {
+        if (key.length < prefix.length)
+            return false;
+
+        for (int i = 0; i < prefix.length; i++)
+            if (key[i] != prefix[i])
+                return false;
+
+        return true;
     }
 
     @Override
