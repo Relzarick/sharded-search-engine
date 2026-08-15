@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public class RocksService implements AutoCloseable {
+public class RocksService {
     Options options;
     RocksDB db;
 
@@ -20,43 +20,59 @@ public class RocksService implements AutoCloseable {
     static byte SEP = 0x00;
 
     public RocksService() throws RocksDBException {
-        options = new Options().setCreateIfMissing(true);
-//                .setIncreaseParallelism(4);
+        options = new Options().setCreateIfMissing(true)
+                .prepareForBulkLoad()
+                .setIncreaseParallelism(2);
 
-        db = RocksDB.open(options, "/app/data/index");
+        db = RocksDB.open(options, "index");
         writeOptions = new WriteOptions().setDisableWAL(true);
     }
 
-    public void set(CommandQueue.Commands data) throws RocksDBException {
+    public void set(List<CommandQueue.Commands> data) throws RocksDBException {
         try (WriteBatch batch = new WriteBatch()) {
-            for (Map.Entry<String, List<PositionalPosting>> entry : data.batch().entrySet()) {
-                byte[] token = entry.getKey().getBytes();
+            for (CommandQueue.Commands cmd : data) {
+                for (Map.Entry<String, List<PositionalPosting>> entry : cmd.batch().entrySet()) {
+                    byte[] token = entry.getKey().getBytes();
 
-                for (PositionalPosting posting : entry.getValue()) {
-                    UUID uuid = posting.uuid();
+                    for (PositionalPosting posting : entry.getValue()) {
+                        UUID uuid = posting.uuid();
 
-                    // TOKEN + SEP + UUID
-                    ByteBuffer buf = ByteBuffer.allocate(token.length + 1 + 16);
+                        // TOKEN + SEP + UUID
+                        ByteBuffer buf = ByteBuffer.allocate(token.length + 1 + 16);
 
-                    buf.put(token).put(SEP);
-                    buf.putLong(uuid.getMostSignificantBits());
-                    buf.putLong(uuid.getLeastSignificantBits());
+                        buf.put(token).put(SEP);
+                        buf.putLong(uuid.getMostSignificantBits());
+                        buf.putLong(uuid.getLeastSignificantBits());
 
-                    byte[] key = buf.array();
+                        byte[] key = buf.array();
 
-                    int[] positions = posting.positions().toIntArray();
+                        int[] positions = posting.positions().toIntArray();
 
-                    // POSITIONS
-                    ByteBuffer posBuf = ByteBuffer.allocate(positions.length * 4);
-                    posBuf.asIntBuffer().put(positions);
+                        // POSITIONS
+                        ByteBuffer posBuf = ByteBuffer.allocate(positions.length * 4);
+                        posBuf.asIntBuffer().put(positions);
 
-                    byte[] value = posBuf.array();
+                        byte[] value = posBuf.array();
 
-                    batch.put(key, value);
+                        batch.put(key, value);
+                    }
                 }
             }
 
             db.write(writeOptions, batch);
+        }
+    }
+
+    public void compact() throws RocksDBException {
+        db.compactRange(null, null);
+    }
+
+    public void test() {
+        try {
+            long estimatedKeys = db.getLongProperty("rocksdb.estimate-num-keys");
+            System.out.println("Estimated total keys: " + estimatedKeys);
+        } catch (RocksDBException e) {
+            e.printStackTrace();
         }
     }
 
@@ -107,7 +123,6 @@ public class RocksService implements AutoCloseable {
         return true;
     }
 
-    @Override
     public void close() {
         db.close();
     }

@@ -12,17 +12,12 @@ services:
     volumes:
       - ./backend/src/main/resources/config.properties:/app/config.properties
       - ./backend/data:/app/data
+      - rocksdb_data:/app/index
     depends_on:
       db:
         condition: service_started
-      redis1:
-        condition: service_healthy
-      redis2:
-        condition: service_healthy
-      redis3:
-        condition: service_healthy
-      redis4:
-        condition: service_healthy
+  #      redis1:
+  #        condition: service_healthy
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -37,7 +32,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: .5g
+          memory: 256M
 
   db:
     container_name: mongrel
@@ -57,86 +52,27 @@ services:
         limits:
           memory: 1.5G
 
-  redis1:
-    container_name: r1
-    image: redis:8.8-alpine
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-      start_interval: 1s
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data1:/data
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-
-  redis2:
-    container_name: r2
-    image: redis:8.8-alpine
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-      start_interval: 1s
-    ports:
-      - "6380:6379"
-    volumes:
-      - redis_data2:/data
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-
-  redis3:
-    container_name: r3
-    image: redis:8.8-alpine
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-      start_interval: 1s
-    ports:
-      - "6381:6379"
-    volumes:
-      - redis_data3:/data
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-
-  redis4:
-    container_name: r4
-    image: redis:8.8-alpine
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-      start_interval: 1s
-    ports:
-      - "6382:6379"
-    volumes:
-      - redis_data4:/data
-    deploy:
-      resources:
-        limits:
-          memory: 1G
+#  redis1:
+#    container_name: r1
+#    image: redis:8.8-alpine
+#    healthcheck:
+#      test: [ "CMD", "redis-cli", "ping" ]
+#      interval: 5s
+#      timeout: 3s
+#      retries: 5
+#      start_period: 5s
+#      start_interval: 1s
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - redis_data1:/data
+#    deploy:
+#      resources:
+#        limits:
+#          memory: 1G
 
 volumes:
   mongo_data:
   mongo_config:
-  redis_data1:
-  redis_data2:
-  redis_data3:
-  redis_data4:
+  rocksdb_data:
+#  redis_data1:

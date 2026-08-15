@@ -103,7 +103,7 @@ public final class RedisService implements Index {
         client.close();
     }
 
- 
+
     private static class IndexCodec implements RedisCodec<Object, byte[]> {
         private final StringCodec stringCodec = StringCodec.UTF8;
 

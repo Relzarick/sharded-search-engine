@@ -6,7 +6,8 @@ import indexer.InvertedIndexer;
 import mongo.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.RedisShardRouter;
+import rocks.RocksRouter;
+import rocks.RocksService;
 
 import java.io.IOException;
 import java.util.concurrent.*;
@@ -20,16 +21,24 @@ public final class CreateWorkers {
     private final int PARSER_TC = ConfigLoader.getInt("parser.threadCount", "1");
     private final int INDEXER_TC = ConfigLoader.getInt("indexer.threadCount", "1");
     private final int MONGO_TC = ConfigLoader.getInt("mongo.threadCount", "1");
-    private final int REDIS_TC = ConfigLoader.getInt("redis.threadCount", "1");
+    private final int ROCKS_TC = ConfigLoader.getInt("rocks.threadCount", "1");
 
     private final BlockingQueue<QueueItem> mongoQueue = new LinkedBlockingQueue<>(10);
     private final BlockingQueue<QueueItem> indexerQueue = new ArrayBlockingQueue<>(20);
-    private final BlockingQueue<QueueItem> redisQueue = new ArrayBlockingQueue<>(20);
+    private final BlockingQueue<QueueItem> rocksQueue = new ArrayBlockingQueue<>(20);
 
     private final ExecutorService parserThreadPool = Executors.newFixedThreadPool(PARSER_TC);
     private final ExecutorService indexerThreadPool = Executors.newFixedThreadPool(INDEXER_TC);
     private final ExecutorService mongoThreadPool = Executors.newFixedThreadPool(MONGO_TC);
-    private final ExecutorService redisThreadPool = Executors.newFixedThreadPool(REDIS_TC);
+    private final ExecutorService rocksThreadPool = Executors.newFixedThreadPool(ROCKS_TC);
+
+    Repository db;
+    RocksRouter router;
+
+    public CreateWorkers(Repository db, RocksService index) {
+        this.db = db;
+        this.router = new RocksRouter(index);
+    }
 
     private record Target(BlockingQueue<QueueItem> queue, int pillCount) {
     }
@@ -40,9 +49,9 @@ public final class CreateWorkers {
      * @throws CancellationException if the computation was cancelled
      * @throws CompletionException   if this future completed
      */
-    public void run(CsvParser parser, InvertedIndexer indexer, Repository db, RedisShardRouter router) {
+    public void run(CsvParser parser, InvertedIndexer indexer) {
         CompletableFuture<Void> producers = runProducers(parser, indexer);
-        CompletableFuture<Void> consumers = runConsumers(db, router);
+        CompletableFuture<Void> consumers = runConsumers();
 
         CompletableFuture.allOf(producers, consumers).join();
     }
@@ -77,7 +86,7 @@ public final class CreateWorkers {
                         if (item instanceof QueueItem.PoisonPill)
                             break;
 
-                        indexer.tokenizeToQueue((QueueItem.DocumentBatch) item, redisQueue);
+                        indexer.tokenizeToQueue((QueueItem.DocumentBatch) item, rocksQueue);
                     }
                 } catch (Exception e) {
                     throw new CompletionException(e);
@@ -86,7 +95,7 @@ public final class CreateWorkers {
         }
 
         CompletableFuture<Void> allParser = insertPoisonPills(parserFutures, new Target(mongoQueue, MONGO_TC), new Target(indexerQueue, INDEXER_TC));
-        CompletableFuture<Void> allIndexer = insertPoisonPills(indexerFutures, new Target(redisQueue, 1));
+        CompletableFuture<Void> allIndexer = insertPoisonPills(indexerFutures, new Target(rocksQueue, 1));
 
         return CompletableFuture.allOf(allParser, allIndexer).whenComplete((result, throwable) -> {
             parserThreadPool.shutdown();
@@ -115,9 +124,9 @@ public final class CreateWorkers {
     /**
      * Consumers will only do insertions
      */
-    private CompletableFuture<Void> runConsumers(Repository db, RedisShardRouter router) {
+    private CompletableFuture<Void> runConsumers() {
         CompletableFuture<?>[] mongoFuturesArray = new CompletableFuture<?>[MONGO_TC];
-        CompletableFuture<?>[] redisFuturesArray = new CompletableFuture<?>[REDIS_TC];
+        CompletableFuture<?>[] rocksFuturesArray = new CompletableFuture<?>[ROCKS_TC];
 
         for (int i = 0; i < MONGO_TC; i++) {
             mongoFuturesArray[i] = CompletableFuture.runAsync(() -> {
@@ -142,40 +151,38 @@ public final class CreateWorkers {
             }, mongoThreadPool);
         }
 
-        for (int i = 0; i < REDIS_TC; i++) {
-            redisFuturesArray[i] = CompletableFuture.runAsync(() -> {
+        for (int i = 0; i < ROCKS_TC; i++) {
+            rocksFuturesArray[i] = CompletableFuture.runAsync(() -> {
                 try {
                     while (true) {
-                        QueueItem item = redisQueue.take();
+                        QueueItem item = rocksQueue.take();
 
                         if (item instanceof QueueItem.PoisonPill)
                             break;
 
                         QueueItem.IndexerBatch batch = (QueueItem.IndexerBatch) item;
 
-                        router.routeToRedis(batch.term(), batch.uuids());
+                        router.routeTo(batch.term(), batch.uuids());
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    abortIngestion("Redis consumer interrupted");
+                    abortIngestion("RocksDB interrupted");
                     throw new CompletionException(e);
                 } catch (Exception e) {
                     logger.error("Failed to process batch. Reason: {}", e.getMessage());
 
-                    abortIngestion("Redis consumer failed: " + e);
+                    abortIngestion("RocksDB failed: " + e);
                     throw new CompletionException(e);
                 }
-            }, redisThreadPool);
+            }, rocksThreadPool);
         }
 
-        return futuresBatched(mongoFuturesArray, redisFuturesArray);
+        return futuresBatched(mongoFuturesArray, rocksFuturesArray);
     }
 
     /**
      * This will crash the whole pipeline if anything messes up, so only insert good csv datasets.
      *
-     * @param m Mongo Futures
-     * @param r Redis Futures
      * @return A super wrapped completable future.
      */
     private CompletableFuture<Void> futuresBatched(CompletableFuture<?>[] m, CompletableFuture<?>[] r) {
@@ -184,7 +191,7 @@ public final class CreateWorkers {
 
         return CompletableFuture.allOf(nestedMongofutures, nestedRedisFutures).whenComplete((result, throwable) -> {
             mongoThreadPool.shutdown();
-            redisThreadPool.shutdown();
+            rocksThreadPool.shutdown();
         });
     }
 
@@ -194,7 +201,7 @@ public final class CreateWorkers {
         parserThreadPool.shutdownNow();
         indexerThreadPool.shutdownNow();
         mongoThreadPool.shutdownNow();
-        redisThreadPool.shutdownNow();
+        rocksThreadPool.shutdownNow();
     }
 
 }

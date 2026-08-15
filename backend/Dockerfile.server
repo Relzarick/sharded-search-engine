@@ -1,4 +1,9 @@
-FROM maven:3.9-eclipse-temurin-21-alpine AS build
+FROM maven:3.9.16-eclipse-temurin-21 AS profiler
+WORKDIR /downloads
+
+RUN curl -sL https://github.com/async-profiler/async-profiler/releases/download/v4.5/async-profiler-4.5-linux-x64.tar.gz | tar -xz
+
+FROM maven:3.9.16-eclipse-temurin-21 AS build
 WORKDIR /app
 
 COPY pom.xml .
@@ -7,17 +12,12 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline
 COPY src ./src
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp package -DskipTests
 
-FROM alpine:3.20 AS profiler-downloader
-
-RUN wget https://github.com/async-profiler/async-profiler/releases/download/v4.4/async-profiler-4.4-linux-x64.tar.gz \
-    && tar -xzf async-profiler-4.4-linux-x64.tar.gz
-
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup && mkdir data && chown appuser:appgroup data
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser && mkdir data index && chown appuser:appgroup data index
 
-COPY --from=profiler-downloader --chown=appuser:appgroup /async-profiler-4.4-linux-x64 /app/async-profiler
+COPY --from=profiler --chown=appuser:appgroup /downloads/async-profiler-4.5-linux-x64 /app/async-profiler
 COPY --from=build --chown=appuser:appgroup /app/target/Distributed-Search-Engine-1.2-SNAPSHOT.jar app.jar
 
 USER appuser

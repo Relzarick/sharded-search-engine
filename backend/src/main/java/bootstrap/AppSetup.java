@@ -5,9 +5,7 @@ import etl.parser.CsvParser;
 import indexer.InvertedIndexer;
 import logging.StopWatch;
 import mongo.Repository;
-import redis.RedisShardRouter;
-
-import java.io.IOException;
+import rocks.RocksService;
 
 public final class AppSetup {
     private AppSetup() {
@@ -17,23 +15,20 @@ public final class AppSetup {
      * Handles setup logic including, parsing, tokenizing and ingestion to mongo and redis.
      *
      */
-    public static void run(Repository db, InvertedIndexer indexer) throws IOException {
-        StopWatch parse = new StopWatch("Parsing pipeline");
+    public static void run(Repository db, RocksService index, InvertedIndexer indexer) {
+        StopWatch pTimer = new StopWatch("Parsing pipeline");
 
         try {
-            StopWatch index = new StopWatch("CSV Index");
+            StopWatch iTimer = new StopWatch("CSV Index");
             CsvParser parser = new CsvParser();
-            index.stop();
+            iTimer.stop();
 
-            CreateWorkers workers = new CreateWorkers();
+            CreateWorkers workers = new CreateWorkers(db, index);
+            workers.run(parser, indexer);
 
-            try (RedisShardRouter router = new RedisShardRouter()) {
-                workers.run(parser, indexer, db, router);
-            }
-
-            parse.stop();
+            pTimer.stop();
         } catch (Exception e) {
-            parse.stopOnFailure();
+            pTimer.stopOnFailure();
             throw new RuntimeException(e.getMessage(), e);
         }
     }
