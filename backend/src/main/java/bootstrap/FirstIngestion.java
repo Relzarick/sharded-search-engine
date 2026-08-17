@@ -5,17 +5,17 @@ import etl.parser.CsvParser;
 import indexer.InvertedIndexer;
 import logging.StopWatch;
 import mongo.Repository;
-import rocks.RocksService;
+import rocks.RocksRouter;
 
-public final class AppSetup {
-    private AppSetup() {
+public final class FirstIngestion {
+    private FirstIngestion() {
     }
 
     /**
      * Handles setup logic including, parsing, tokenizing and ingestion to mongo and redis.
      *
      */
-    public static void run(Repository db, RocksService index, InvertedIndexer indexer) {
+    public static void run(Repository db, InvertedIndexer indexer) {
         StopWatch pTimer = new StopWatch("Parsing pipeline");
 
         try {
@@ -23,8 +23,11 @@ public final class AppSetup {
             CsvParser parser = new CsvParser();
             iTimer.stop();
 
-            CreateWorkers workers = new CreateWorkers(db, index);
-            workers.run(parser, indexer);
+            CreateWorkers workers = new CreateWorkers();
+            RocksRouter router = new RocksRouter();
+
+            workers.run(parser, db, indexer, router);
+            router.asyncCompactThenClose();
 
             pTimer.stop();
         } catch (Exception e) {

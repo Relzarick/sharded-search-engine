@@ -7,13 +7,14 @@ import mongo.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rocks.RocksRouter;
-import rocks.RocksService;
 
 import java.io.IOException;
 import java.util.concurrent.*;
 
 /**
- * Used to insert parsed data into the databases
+ * Running a producer-consumer pattern here.
+ * <br><br>
+ * Parser > Mongo/Indexer > Router > Index
  */
 public final class CreateWorkers {
     private static final Logger logger = LoggerFactory.getLogger(CreateWorkers.class);
@@ -21,24 +22,16 @@ public final class CreateWorkers {
     private final int PARSER_TC = ConfigLoader.getInt("parser.threadCount", "1");
     private final int INDEXER_TC = ConfigLoader.getInt("indexer.threadCount", "1");
     private final int MONGO_TC = ConfigLoader.getInt("mongo.threadCount", "1");
-    private final int ROCKS_TC = ConfigLoader.getInt("rocks.threadCount", "1");
+    private final int ROUTER_TC = ConfigLoader.getInt("router.threadCount", "1");
 
     private final BlockingQueue<QueueItem> mongoQueue = new LinkedBlockingQueue<>(10);
     private final BlockingQueue<QueueItem> indexerQueue = new ArrayBlockingQueue<>(20);
-    private final BlockingQueue<QueueItem> rocksQueue = new ArrayBlockingQueue<>(20);
+    private final BlockingQueue<QueueItem> routerQueue = new ArrayBlockingQueue<>(20);
 
     private final ExecutorService parserThreadPool = Executors.newFixedThreadPool(PARSER_TC);
     private final ExecutorService indexerThreadPool = Executors.newFixedThreadPool(INDEXER_TC);
     private final ExecutorService mongoThreadPool = Executors.newFixedThreadPool(MONGO_TC);
-    private final ExecutorService rocksThreadPool = Executors.newFixedThreadPool(ROCKS_TC);
-
-    Repository db;
-    RocksRouter router;
-
-    public CreateWorkers(Repository db, RocksService index) {
-        this.db = db;
-        this.router = new RocksRouter(index);
-    }
+    private final ExecutorService routerThreadPool = Executors.newFixedThreadPool(ROUTER_TC);
 
     private record Target(BlockingQueue<QueueItem> queue, int pillCount) {
     }
@@ -49,9 +42,9 @@ public final class CreateWorkers {
      * @throws CancellationException if the computation was cancelled
      * @throws CompletionException   if this future completed
      */
-    public void run(CsvParser parser, InvertedIndexer indexer) {
+    public void run(CsvParser parser, Repository db, InvertedIndexer indexer, RocksRouter router) {
         CompletableFuture<Void> producers = runProducers(parser, indexer);
-        CompletableFuture<Void> consumers = runConsumers();
+        CompletableFuture<Void> consumers = runConsumers(db, router);
 
         CompletableFuture.allOf(producers, consumers).join();
     }
@@ -86,7 +79,7 @@ public final class CreateWorkers {
                         if (item instanceof QueueItem.PoisonPill)
                             break;
 
-                        indexer.tokenizeToQueue((QueueItem.DocumentBatch) item, rocksQueue);
+                        indexer.tokenizeToQueue((QueueItem.DocumentBatch) item, routerQueue);
                     }
                 } catch (Exception e) {
                     throw new CompletionException(e);
@@ -95,7 +88,7 @@ public final class CreateWorkers {
         }
 
         CompletableFuture<Void> allParser = insertPoisonPills(parserFutures, new Target(mongoQueue, MONGO_TC), new Target(indexerQueue, INDEXER_TC));
-        CompletableFuture<Void> allIndexer = insertPoisonPills(indexerFutures, new Target(rocksQueue, 1));
+        CompletableFuture<Void> allIndexer = insertPoisonPills(indexerFutures, new Target(routerQueue, ROUTER_TC));
 
         return CompletableFuture.allOf(allParser, allIndexer).whenComplete((result, throwable) -> {
             parserThreadPool.shutdown();
@@ -124,9 +117,9 @@ public final class CreateWorkers {
     /**
      * Consumers will only do insertions
      */
-    private CompletableFuture<Void> runConsumers() {
+    private CompletableFuture<Void> runConsumers(Repository db, RocksRouter router) {
         CompletableFuture<?>[] mongoFuturesArray = new CompletableFuture<?>[MONGO_TC];
-        CompletableFuture<?>[] rocksFuturesArray = new CompletableFuture<?>[ROCKS_TC];
+        CompletableFuture<?>[] routerFuturesArray = new CompletableFuture<?>[ROUTER_TC];
 
         for (int i = 0; i < MONGO_TC; i++) {
             mongoFuturesArray[i] = CompletableFuture.runAsync(() -> {
@@ -151,11 +144,11 @@ public final class CreateWorkers {
             }, mongoThreadPool);
         }
 
-        for (int i = 0; i < ROCKS_TC; i++) {
-            rocksFuturesArray[i] = CompletableFuture.runAsync(() -> {
+        for (int i = 0; i < ROUTER_TC; i++) {
+            routerFuturesArray[i] = CompletableFuture.runAsync(() -> {
                 try {
                     while (true) {
-                        QueueItem item = rocksQueue.take();
+                        QueueItem item = routerQueue.take();
 
                         if (item instanceof QueueItem.PoisonPill)
                             break;
@@ -174,10 +167,10 @@ public final class CreateWorkers {
                     abortIngestion("RocksDB failed: " + e);
                     throw new CompletionException(e);
                 }
-            }, rocksThreadPool);
+            }, routerThreadPool);
         }
 
-        return futuresBatched(mongoFuturesArray, rocksFuturesArray);
+        return futuresBatched(mongoFuturesArray, routerFuturesArray);
     }
 
     /**
@@ -191,7 +184,7 @@ public final class CreateWorkers {
 
         return CompletableFuture.allOf(nestedMongofutures, nestedRedisFutures).whenComplete((result, throwable) -> {
             mongoThreadPool.shutdown();
-            rocksThreadPool.shutdown();
+            routerThreadPool.shutdown();
         });
     }
 
@@ -201,7 +194,7 @@ public final class CreateWorkers {
         parserThreadPool.shutdownNow();
         indexerThreadPool.shutdownNow();
         mongoThreadPool.shutdownNow();
-        rocksThreadPool.shutdownNow();
+        routerThreadPool.shutdownNow();
     }
 
 }

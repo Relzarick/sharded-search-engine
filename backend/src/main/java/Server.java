@@ -1,14 +1,12 @@
-import bootstrap.AppSetup;
+import bootstrap.FirstIngestion;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import indexer.InvertedIndexer;
 import indexer.tokenizer.StemTokenization;
 import mongo.Database;
 import mongo.Repository;
-import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rocks.RocksService;
 import search.SearchHandler;
 import search.SearchService;
 
@@ -22,14 +20,10 @@ public class Server {
     public static void main(String[] args) {
         try {
             Repository db = new Database();
-            RocksService index = new RocksService();
             InvertedIndexer indexer = new InvertedIndexer(new StemTokenization());
 
             if (!db.ifExists())
-                AppSetup.run(db, index, indexer);
-
-            index.compact();
-            index.test();
+                FirstIngestion.run(db, indexer);
 
             SearchService search = new SearchService(db, indexer);
 
@@ -41,7 +35,6 @@ public class Server {
 
                 try {
                     db.close();
-                    index.close();
 
                     logger.info("Database closed.");
                 } catch (Exception e) {
@@ -53,8 +46,6 @@ public class Server {
             logger.error("IO ERROR: Failed to create the server");
         } catch (RuntimeException e) {
             logger.error("RUNTIME ERROR: Something crashed");
-        } catch (RocksDBException e) {
-            logger.error("RocksDB ERROR: Constructor/Compaction failure");
         }
     }
 

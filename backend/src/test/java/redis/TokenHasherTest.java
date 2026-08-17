@@ -1,5 +1,6 @@
 package redis;
 
+import etl.TokenHasher;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;

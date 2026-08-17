@@ -1,11 +1,11 @@
 package search;
 
+import etl.TokenHasher;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import redis.Index;
 import redis.RedisService;
-import redis.TokenHasher;
 
 import java.util.*;
 import java.util.concurrent.ExecutionException;

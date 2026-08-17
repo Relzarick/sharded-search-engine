@@ -1,7 +1,7 @@
-FROM maven:3.9.16-eclipse-temurin-21 AS profiler
+FROM alpine:latest AS profiler
 WORKDIR /downloads
 
-RUN curl -sL https://github.com/async-profiler/async-profiler/releases/download/v4.5/async-profiler-4.5-linux-x64.tar.gz | tar -xz
+RUN wget -qO- https://github.com/async-profiler/async-profiler/releases/download/v4.5/async-profiler-4.5-linux-x64.tar.gz | tar -xz
 
 FROM maven:3.9.16-eclipse-temurin-21 AS build
 WORKDIR /app
@@ -18,7 +18,7 @@ WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser && mkdir data index && chown appuser:appgroup data index
 
 COPY --from=profiler --chown=appuser:appgroup /downloads/async-profiler-4.5-linux-x64 /app/async-profiler
-COPY --from=build --chown=appuser:appgroup /app/target/Distributed-Search-Engine-1.2-SNAPSHOT.jar app.jar
+COPY --from=build --chown=appuser:appgroup /app/target/Sharded-Search-Engine-1.3.jar app.jar
 
 USER appuser
 EXPOSE 8080
@@ -33,5 +33,5 @@ CMD ["-XX:MaxRAMPercentage=70.0", "-XX:+UseZGC", "-jar", "app.jar"]
 
 #CMD ["-XX:MaxRAMPercentage=70.0", \
 #     "-XX:+UseZGC", \
-#     "-XX:StartFlightRecording=duration=50s,filename=/tmp/recording.jfr,settings=profile", \
+#     "-XX:StartFlightRecording=duration=45s,filename=/tmp/recording.jfr,settings=profile", \
 #     "-jar", "app.jar"]
