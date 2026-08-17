@@ -37,7 +37,7 @@ class Submissioner {
                     if (item instanceof RouterQueueItem.PoisonPill)
                         break;
 
-                    index.set(item);
+                    index.write(item);
                 } catch (InterruptedException | RocksDBException e) {
                     logger.error("ROCKSDB ERRROR: failed to write");
                     throw new RuntimeException(e);
@@ -46,7 +46,9 @@ class Submissioner {
         });
     }
 
+    // collect futures and block compact
     void compactThenClose() throws RocksDBException {
+        index.ingest();
         index.compact();
         service.shutdown();
         index.close();

@@ -6,6 +6,7 @@ import org.rocksdb.RocksDBException;
 import redis.InternalPosting;
 import search.PositionalPosting;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,10 +15,10 @@ public class RocksRouter {
     private final Submissioner[] shards;
     private final ExecutorService compactionService;
 
-    public RocksRouter() throws RocksDBException {
+    public RocksRouter() throws RocksDBException, IOException {
         shards = new Submissioner[]{
-                new Submissioner(new RocksService("index/shard-0")),
-                new Submissioner(new RocksService("index/shard-1"))
+                new Submissioner(new RocksService("shard-0")),
+                new Submissioner(new RocksService("shard-1"))
         };
 
         compactionService = Executors.newFixedThreadPool(shards.length);

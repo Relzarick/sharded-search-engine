@@ -4,8 +4,11 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import org.rocksdb.*;
 import search.PositionalPosting;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,25 +16,40 @@ import java.util.UUID;
 
 public class RocksService {
     private final RocksDB db;
-    private final WriteOptions writeOptions;
+    EnvOptions envOptions;
+    Options sstOptions;
+    IngestExternalFileOptions ingestOptions = new IngestExternalFileOptions().setMoveFiles(true);
+
+    private final String name;
+
+    private final List<String> tmpFiles = new ArrayList<>();
+    private int tmpCount = 0;
 
     private static final byte SEP = 0x00;
     private final ByteBuffer keyBuf = ByteBuffer.allocateDirect(1024);
     private final ByteBuffer valBuf = ByteBuffer.allocateDirect(1024 * 1024);
 
-    public RocksService(String path) throws RocksDBException {
-        Options options = new Options()
+    public RocksService(String name) throws RocksDBException, IOException {
+        Options dbOptions = new Options()
                 .setCreateIfMissing(true)
                 .prepareForBulkLoad();
 
-        db = RocksDB.open(options, path);
-        writeOptions = new WriteOptions().setDisableWAL(true);
+        this.name = name;
+        Files.createDirectories(Paths.get("index/tmp/" + name));
+        db = RocksDB.open(dbOptions, "index/" + name);
+
+        envOptions = new EnvOptions();
+        sstOptions = new Options();
     }
 
-    public void set(RouterQueueItem queueItem) throws RocksDBException {
-        try (WriteBatch wb = new WriteBatch()) {
-            RouterQueueItem.IndexBatch batch = (RouterQueueItem.IndexBatch) queueItem;
+    public void write(RouterQueueItem queueItem) throws RocksDBException {
+        String filePath = "index/tmp/" + name + "/" + tmpCount;
+        tmpCount++;
 
+        try (SstFileWriter writer = new SstFileWriter(envOptions, sstOptions)) {
+            writer.open(filePath);
+
+            RouterQueueItem.IndexBatch batch = (RouterQueueItem.IndexBatch) queueItem;
             for (Map.Entry<String, List<PositionalPosting>> item : batch.batch().entrySet()) {
                 byte[] token = item.getKey().getBytes();
 
@@ -50,12 +68,17 @@ public class RocksService {
                     valBuf.asIntBuffer().put(positions);
                     valBuf.limit(positions.length * Integer.BYTES); // cap to exact bytes, no overflow
 
-                    wb.put(keyBuf, valBuf);
+                    writer.put(keyBuf, valBuf);
                 }
             }
 
-            db.write(writeOptions, wb);
+            writer.finish();
+            tmpFiles.add(filePath);
         }
+    }
+
+    public void ingest() throws RocksDBException {
+        db.ingestExternalFile(tmpFiles, ingestOptions);
     }
 
     public void compact() throws RocksDBException {
