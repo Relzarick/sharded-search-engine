@@ -15,8 +15,7 @@ public class RocksService {
     private final RocksDB db;
     private final WriteOptions writeOptions;
 
-    static byte SEP = 0x00;
-
+    private static final byte SEP = 0x00;
     private final ByteBuffer keyBuf = ByteBuffer.allocateDirect(1024);
     private final ByteBuffer valBuf = ByteBuffer.allocateDirect(1024 * 1024);
 

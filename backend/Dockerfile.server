@@ -10,7 +10,7 @@ COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline
 
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp package -DskipTests -o
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
@@ -18,6 +18,8 @@ WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser && mkdir data index && chown appuser:appgroup data index
 
 COPY --from=profiler --chown=appuser:appgroup /downloads/async-profiler-4.5-linux-x64 /app/async-profiler
+
+COPY --from=build --chown=appuser:appgroup /app/target/libs/ /app/libs/
 COPY --from=build --chown=appuser:appgroup /app/target/Sharded-Search-Engine-1.3.jar app.jar
 
 USER appuser
