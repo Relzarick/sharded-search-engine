@@ -8,8 +8,7 @@ Visit the site at: https://telemachus.relzarick.com/
 - Place the dataset into the data folder under the backend dir.
 - A mock.js file is provided to test the frontend without querying the server.
 
-Currently designed to only ingest a single .csv file it does not support multiple datasets. The .csv file may be deleted
-after the initial ingestion.
+Currently designed to only ingest a single .csv file it does not support multiple datasets.
 
 ### Dataset Used
 
@@ -25,7 +24,7 @@ after the initial ingestion.
 
 - Keyword Processing: Extracts key terms from the data to build a fast-lookup index.
 
-- Redis Ingestion: Pushes those keywords into Redis, mapping each token to its document ID for quick lookups.
+- RocksDB Ingestion: Builds a composite key using the token and UUID, storing the posistions.
 
 ### Look up ranking algorithm
 
@@ -36,31 +35,25 @@ after the initial ingestion.
 
 ## Performance Benchmarks
 
-The dataset tested contained around 1.23 million CSV rows in ~60.2s.
+The dataset tested contained around 1.23 million CSV rows in ~37s.
 
-- Total CSV Parse Time: ~2.6 seconds
+- Total CSV Parse Time: ~2.4 seconds
 
-- MongoDB Ingestion Speed: ~20,440 rows/sec (1.23M rows)
+- MongoDB Ingestion Speed: ~33,243 rows/sec (1.23M rows)
 
-- Keyword Indexing Speed: ~1,023,851 tokens/sec (61.65M tokens)
-
-- Redis Ingestion Speed: ~365,300 commands/sec (61.65M tokens)
+- Keyword Indexing Speed: ~1,666,216 tokens/sec (61.65M tokens)
 
 | Metric              | Throughput        |
 | ------------------- | ----------------- |
-| **Total Pipeline**  | ~20.4k RPS        |
-| **CSV Parse**       | ~475k RPS         |
-| **Mongo Operation** | ~20.4k RPS        |
-| **Indexing**        | ~1.02M tokens/sec |
-| **Redis Commands**  | ~210.6k cmds/sec  |
+| **Total Pipeline**  | ~33.2k RPS        |
+| **CSV Parse**       | ~512.5k RPS       |
+| **Mongo Operation** | ~33.2k RPS        |
+| **Indexing**        | ~1.66M tokens/sec |
 
 ## Notes
 
-Using Redis for the inverted index was the wrong choice. I underestimated the sheer volume of write commands.
+If I were to rebuilt this again, during ingestion, I would use some sort of AI to analyze randomly picked contents of the data.
+Using that data and the header to build a short summary describing the contents of the dataset.
 
-The better alternative would have been to use RocksDB instead for the index, and configure Redis to hold the token → UUID list for querying instead.
-
-During ingestion, the system should use some sort of AI to analyze random contents of the data, building a short summary of the dataset for use at query time.
-
-This can then be used with another AI during query time, analyzing the user's input against this summary to insert more
+This will then be used again during query time, analyzing the user's input against this summary to insert more
 keywords into the query for better relevancy. This can also act as a secondary ranking signal.

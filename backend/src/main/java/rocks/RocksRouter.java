@@ -45,8 +45,6 @@ public class RocksRouter {
             shardedBatch.get(shardIndex).put(entry.getKey(), postings);
         }
 
-        tokensToPosting.clear(); // Small memory save
-
         for (int i = 0; i < shards.length; i++)
             shards[i].queueBatch(new RouterQueueItem.IndexBatch(shardedBatch.get(i)));
     }
