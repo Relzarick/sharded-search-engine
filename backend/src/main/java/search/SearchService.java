@@ -10,19 +10,21 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import mongo.Repository;
 import org.bson.BsonDocument;
 import org.bson.UuidRepresentation;
+import org.rocksdb.RocksDBException;
 
+import java.io.IOException;
 import java.util.*;
 
 public class SearchService {
     private final Repository mongo;
-    private final RedisQueryService query = new RedisQueryService();
     private final InvertedIndexer indexer;
+    private final QueryService query = new QueryService();
 
     private static final double PROXIMITY_WEIGHT = 5.0;
     private static final double PHRASE_WEIGHT = 2.0;
     private static final int NO_MATCH = Integer.MAX_VALUE;
 
-    public SearchService(Repository db, InvertedIndexer idx) {
+    public SearchService(Repository db, InvertedIndexer idx) throws RocksDBException, IOException {
         mongo = db;
         indexer = idx;
     }
@@ -30,7 +32,7 @@ public class SearchService {
     public String find(String input, int offset, int size) {
         List<String> cleanedInput = indexer.tokenizeKeyWords(input);
 
-        QueryResult queryResult = query.fetchFromRedis(cleanedInput);
+        QueryResult queryResult = query.fetchFromIndex(cleanedInput);
         long totalDoc = mongo.getCollection().estimatedDocumentCount();
 
         if (queryResult.docTermPos().isEmpty())

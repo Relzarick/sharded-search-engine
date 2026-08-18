@@ -128,15 +128,12 @@ public class RocksService {
         return true;
     }
 
-    public void ingest() throws RocksDBException {
+    public void ingestAndCompact() throws RocksDBException {
         db.ingestExternalFile(tmpFiles, ingestOptions);
-    }
-
-    public void compact() throws RocksDBException {
         db.compactRange(null, null);
     }
 
-    public void clearnupTmp(String name) throws IOException {
+    public void clearTmpFiles(String name) throws IOException {
         Files.deleteIfExists(Paths.get(tmpPath + name));
     }
 

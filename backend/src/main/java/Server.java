@@ -5,6 +5,7 @@ import indexer.InvertedIndexer;
 import indexer.tokenizer.StemTokenization;
 import mongo.Database;
 import mongo.Repository;
+import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import search.SearchHandler;
@@ -30,22 +31,13 @@ public class Server {
             HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
             start(server, new SearchHandler(search));
 
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                server.stop(0);
-
-                try {
-                    db.close();
-
-                    logger.info("Database closed.");
-                } catch (Exception e) {
-                    logger.error("Error while closing database: {}", e.getMessage());
-                }
-            }));
-
+            shutdownHook(server, db);
         } catch (IOException e) {
             logger.error("IO ERROR: Failed to create the server");
         } catch (RuntimeException e) {
             logger.error("RUNTIME ERROR: Something crashed");
+        } catch (RocksDBException e) {
+            logger.error("ROCKSDB ERROR: Failed to open index");
         }
     }
 
@@ -55,6 +47,19 @@ public class Server {
         server.start();
 
         logger.info("Server is running on http://wretch:8080");
+    }
+
+    private static void shutdownHook(HttpServer server, Repository db) {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            server.stop(0);
+
+            try {
+                db.close();
+                logger.info("Database closed.");
+            } catch (Exception e) {
+                logger.error("Error while closing database: {}", e.getMessage());
+            }
+        }));
     }
 
 }

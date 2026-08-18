@@ -3,13 +3,14 @@ package rocks;
 import etl.TokenHasher;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.rocksdb.RocksDBException;
+import org.slf4j.LoggerFactory;
 import redis.InternalPosting;
 import search.PositionalPosting;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class RocksRouter {
     private final Submissioner[] shards;
@@ -52,19 +53,22 @@ public class RocksRouter {
      * Initiates cleanup procedures for the index. This is ran in the background
      */
     public void shutdown() {
-        try (ExecutorService compactionService = Executors.newFixedThreadPool(shards.length)) {
-            for (int i = 0; i < shards.length; i++) {
-                final int index = i;
-
-                compactionService.submit(() -> {
-                    try {
-                        shards[index].queueBatch(new RouterQueueItem.PoisonPill());
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                });
+        for (Submissioner shard : shards) {
+            try {
+                shard.queueBatch(new RouterQueueItem.PoisonPill());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while queueing poison pill", e);
             }
+        }
+
+        for (Submissioner shard : shards)
+            shard.closeThread();
+
+        try {
+            Files.deleteIfExists(Paths.get("index/tmp/"));
+        } catch (IOException e) {
+            LoggerFactory.getLogger(RocksRouter.class).error("Failed to delete temp directory", e);
         }
     }
 

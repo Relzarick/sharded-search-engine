@@ -5,12 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
 
 /**
  * Per shard writer, starts a background thread on construction to submit tasks to index
@@ -25,6 +20,10 @@ class Submissioner {
     private final BlockingQueue<RouterQueueItem> queue = new LinkedBlockingQueue<>(10);
     private final ExecutorService service = Executors.newSingleThreadExecutor();
 
+    /**
+     *
+     * @param shardName Named it Shard-xx
+     */
     Submissioner(String shardName) throws RocksDBException, IOException {
         index = new RocksService(shardName);
         pathName = shardName + '/';
@@ -59,18 +58,28 @@ class Submissioner {
 
     void compactThenClose() {
         try {
-            index.ingest();
-            index.compact();
-            index.clearnupTmp(pathName);
+            index.ingestAndCompact();
+            index.clearTmpFiles(pathName);
             index.close();
-
-            Files.deleteIfExists(Paths.get("index/tmp/"));
-            service.shutdown();
         } catch (RocksDBException e) {
-            logger.error("ROCKSDB ERROR: Failed ingestion/compaction");
+            logger.error("ROCKSDB ERROR: Failed ingestion/compaction", e);
             Thread.currentThread().interrupt();
         } catch (IOException e) {
-            logger.error("IO ERROR: Failed to delete tmp folder");
+            logger.error("IO ERROR: Failed to delete temp folders");
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public void closeThread() {
+        service.shutdown();
+
+        try { // Force shutdown after 45 seconds
+            if (!service.awaitTermination(45, TimeUnit.SECONDS)) {
+                service.shutdownNow();
+                throw new RuntimeException("Shard worker did not terminate in time");
+            }
+        } catch (InterruptedException e) {
+            service.shutdownNow();
             Thread.currentThread().interrupt();
         }
     }
