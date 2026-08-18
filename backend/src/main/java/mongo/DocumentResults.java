@@ -1,4 +1,4 @@
-package search;
+package mongo;
 
 import org.bson.BsonDocument;
 

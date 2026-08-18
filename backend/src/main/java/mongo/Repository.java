@@ -2,7 +2,6 @@ package mongo;
 
 import com.mongodb.client.MongoCollection;
 import org.bson.BsonDocument;
-import search.DocumentResults;
 
 import java.util.List;
 import java.util.UUID;

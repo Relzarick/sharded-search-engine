@@ -1,7 +1,5 @@
 package rocks;
 
-import search.PositionalPosting;
-
 import java.util.List;
 import java.util.TreeMap;
 

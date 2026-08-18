@@ -2,7 +2,7 @@ name: search
 
 services:
   backend:
-    container_name: wretch
+    container_name: bastard
     build:
       context: ./backend
       dockerfile: Dockerfile.server
@@ -16,8 +16,8 @@ services:
     depends_on:
       db:
         condition: service_started
-  #      redis1:
-  #        condition: service_healthy
+  #        cache:
+  #          condition: service_healthy
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -50,10 +50,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1.5G
+          memory: 1G
 
-#  redis1:
-#    container_name: r1
+#  cache:
+#    container_name: cunt
 #    image: redis:8.8-alpine
 #    healthcheck:
 #      test: [ "CMD", "redis-cli", "ping" ]
@@ -65,14 +65,14 @@ services:
 #    ports:
 #      - "6379:6379"
 #    volumes:
-#      - redis_data1:/data
+#      - redis_cache:/data
 #    deploy:
 #      resources:
 #        limits:
-#          memory: 1G
+#          memory: 2G
 
 volumes:
   mongo_data:
   mongo_config:
   rocksdb_data:
-#  redis_data1:
+#  redis_cache:

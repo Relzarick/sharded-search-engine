@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
 import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import mongo.DocumentResults;
 import mongo.Repository;
 import org.bson.BsonDocument;
 import org.bson.UuidRepresentation;
@@ -15,21 +16,21 @@ import org.rocksdb.RocksDBException;
 import java.io.IOException;
 import java.util.*;
 
-public class SearchService {
+public class SearchEngine {
     private final Repository mongo;
     private final InvertedIndexer indexer;
-    private final QueryService query = new QueryService();
+    private final IndexReader query = new IndexReader();
 
     private static final double PROXIMITY_WEIGHT = 5.0;
     private static final double PHRASE_WEIGHT = 2.0;
     private static final int NO_MATCH = Integer.MAX_VALUE;
 
-    public SearchService(Repository db, InvertedIndexer idx) throws RocksDBException, IOException {
+    public SearchEngine(Repository db, InvertedIndexer idx) throws RocksDBException, IOException {
         mongo = db;
         indexer = idx;
     }
 
-    public String find(String input, int offset, int size) {
+    public String search(String input, int offset, int size) {
         List<String> cleanedInput = indexer.tokenizeKeyWords(input);
 
         QueryResult queryResult = query.fetchFromIndex(cleanedInput);

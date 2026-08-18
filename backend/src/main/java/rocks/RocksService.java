@@ -2,7 +2,6 @@ package rocks;
 
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import org.rocksdb.*;
-import search.PositionalPosting;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -81,6 +80,9 @@ public class RocksService {
         }
     }
 
+    /**
+     * @return Posting data containing UUID : IntArrayList of positions
+     */
     public List<PositionalPosting> retrieve(String input) {
         byte[] token = input.getBytes(StandardCharsets.UTF_8);
 

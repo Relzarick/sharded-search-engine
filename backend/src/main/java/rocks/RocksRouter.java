@@ -4,7 +4,6 @@ import etl.InternalPosting;
 import etl.TokenHasher;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.rocksdb.RocksDBException;
-import search.PositionalPosting;
 
 import java.io.IOException;
 import java.util.*;

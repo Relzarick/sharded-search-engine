@@ -8,16 +8,19 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
 public class SearchHandler implements HttpHandler {
-    private final SearchService service;
+    private final SearchEngine engine;
     private final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
 
-    public SearchHandler(SearchService service) {
-        this.service = service;
+    private static final Charset charset = StandardCharsets.UTF_8;
+
+    public SearchHandler(SearchEngine engine) {
+        this.engine = engine;
     }
 
     @Override
@@ -28,7 +31,7 @@ public class SearchHandler implements HttpHandler {
 
             if (searchQuery == null || searchQuery.trim().isEmpty()) {
                 String error = "Bad Request: Missing or invalid query parameter.";
-                sendResponses(exchange, 400, error.getBytes(StandardCharsets.UTF_8));
+                sendResponses(exchange, 400, error.getBytes(charset));
                 return;
             }
 
@@ -36,16 +39,16 @@ public class SearchHandler implements HttpHandler {
             int offset = checkParam(queryParams, "offset");
 
             size = Math.min(100, size);
-            String response = service.find(searchQuery, offset, size);
+            String response = engine.search(searchQuery, offset, size);
 
             exchange.getResponseHeaders().set("Content-Type", "application/json");
-            byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = response.getBytes(charset);
 
             sendResponses(exchange, 200, bytes);
         } catch (IOException e) {
             logger.error("SERVER ERROR: {}", e.getMessage());
 
-            byte[] bytes = "Server Error".getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = "Server Error".getBytes(charset);
             sendResponses(exchange, 500, bytes);
         }
     }

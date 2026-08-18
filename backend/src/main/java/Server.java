@@ -8,8 +8,8 @@ import mongo.Repository;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import search.SearchEngine;
 import search.SearchHandler;
-import search.SearchService;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -26,7 +26,7 @@ public class Server {
             if (!db.ifExists())
                 FirstIngestion.run(db, indexer);
 
-            SearchService search = new SearchService(db, indexer);
+            SearchEngine search = new SearchEngine(db, indexer);
 
             HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
             start(server, new SearchHandler(search));

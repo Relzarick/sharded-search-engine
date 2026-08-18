@@ -39,9 +39,9 @@ The dataset tested contained around 1.23 million CSV rows in ~25.8s.
 
 - Total CSV Parse Time: ~2.4 seconds
 
-- MongoDB Ingestion Speed: ~33,243 rows/sec (1.23M rows)
+- MongoDB Ingestion Speed: ~52,564 rows/sec (1.23M rows)
 
-- Keyword Indexing Speed: ~2,283,333 tokens/sec (61.65M tokens)
+- Keyword Indexing Speed: ~2,634,615 tokens/sec (61.65M tokens)
 
 | Metric              | Throughput       |
 |---------------------|------------------|
