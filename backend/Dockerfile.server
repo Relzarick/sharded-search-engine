@@ -35,5 +35,5 @@ CMD ["-XX:MaxRAMPercentage=70.0", "-XX:+UseZGC", "-jar", "app.jar"]
 
 #CMD ["-XX:MaxRAMPercentage=70.0", \
 #     "-XX:+UseZGC", \
-#     "-XX:StartFlightRecording=duration=45s,filename=/tmp/recording.jfr,settings=profile", \
+#     "-XX:StartFlightRecording=duration=35s,filename=/tmp/recording.jfr,settings=profile", \
 #     "-jar", "app.jar"]

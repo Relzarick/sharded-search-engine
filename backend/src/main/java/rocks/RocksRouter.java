@@ -13,15 +13,14 @@ import java.util.concurrent.Executors;
 
 public class RocksRouter {
     private final Submissioner[] shards;
-    private final ExecutorService compactionService;
+
+    private static final Comparator<PositionalPosting> UUID_CMP = Comparator.comparing(PositionalPosting::uuid);
 
     public RocksRouter() throws RocksDBException, IOException {
         shards = new Submissioner[]{
-                new Submissioner(new RocksService("shard-0")),
-                new Submissioner(new RocksService("shard-1"))
+                new Submissioner("shard-0"),
+                new Submissioner("shard-1")
         };
-
-        compactionService = Executors.newFixedThreadPool(shards.length);
     }
 
     /**
@@ -41,7 +40,7 @@ public class RocksRouter {
             for (InternalPosting post : entry.getValue())
                 postings.add(new PositionalPosting(UUIDs[post.docIndex()], post.positions()));
 
-            postings.sort(Comparator.comparing(PositionalPosting::uuid));
+            postings.sort(UUID_CMP);
             shardedBatch.get(shardIndex).put(entry.getKey(), postings);
         }
 
@@ -49,20 +48,24 @@ public class RocksRouter {
             shards[i].queueBatch(new RouterQueueItem.IndexBatch(shardedBatch.get(i)));
     }
 
-    public void asyncCompactThenClose() {
-        for (int i = 0; i < shards.length; i++) {
-            final int index = i;
+    /**
+     * Initiates cleanup procedures for the index. This is ran in the background
+     */
+    public void shutdown() {
+        try (ExecutorService compactionService = Executors.newFixedThreadPool(shards.length)) {
+            for (int i = 0; i < shards.length; i++) {
+                final int index = i;
 
-            compactionService.submit(() -> {
-                try {
-                    shards[index].compactThenClose();
-                } catch (RocksDBException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+                compactionService.submit(() -> {
+                    try {
+                        shards[index].queueBatch(new RouterQueueItem.PoisonPill());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
         }
-
-        compactionService.shutdown();
     }
 
 }

@@ -24,9 +24,9 @@ public final class CreateWorkers {
     private final int MONGO_TC = ConfigLoader.getInt("mongo.threadCount", "1");
     private final int ROUTER_TC = ConfigLoader.getInt("router.threadCount", "1");
 
-    private final BlockingQueue<QueueItem> mongoQueue = new LinkedBlockingQueue<>(10);
-    private final BlockingQueue<QueueItem> indexerQueue = new ArrayBlockingQueue<>(20);
-    private final BlockingQueue<QueueItem> routerQueue = new ArrayBlockingQueue<>(20);
+    private final BlockingQueue<QueueItem> mongoQueue = new LinkedBlockingQueue<>(5);
+    private final BlockingQueue<QueueItem> indexerQueue = new ArrayBlockingQueue<>(10);
+    private final BlockingQueue<QueueItem> routerQueue = new ArrayBlockingQueue<>(10);
 
     private final ExecutorService parserThreadPool = Executors.newFixedThreadPool(PARSER_TC);
     private final ExecutorService indexerThreadPool = Executors.newFixedThreadPool(INDEXER_TC);

@@ -27,9 +27,9 @@ public final class FirstIngestion {
             RocksRouter router = new RocksRouter();
 
             workers.run(parser, db, indexer, router);
-            router.asyncCompactThenClose();
-
             pTimer.stop();
+
+            router.shutdown();
         } catch (Exception e) {
             pTimer.stopOnFailure();
             throw new RuntimeException(e.getMessage(), e);
