@@ -3,8 +3,8 @@ package indexer.tokenizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -17,8 +17,8 @@ class StemTokenizationTest {
         tokenizer = new StemTokenization();
     }
 
-    private Set<String> getTokens(String input) {
-        Set<String> tokens = new HashSet<>();
+    private List<String> getTokens(String input) {
+        List<String> tokens = new ArrayList<>();
         tokenizer.toTokens(input, tokens);
 
         return tokens;
@@ -26,22 +26,22 @@ class StemTokenizationTest {
 
     @Test
     void normalSentenceTest() {
-        assertEquals(Set.of("test"), getTokens("This, is a test!"));
+        assertEquals(List.of("test"), getTokens("This, is a test!"));
     }
 
     @Test
     void weirdSentenceTest() {
-        assertEquals(Set.of("test"), getTokens("This+, is the 3rd test!"));
-        assertEquals(Set.of("test"), getTokens("...test !!!"));
+        assertEquals(List.of("test"), getTokens("This+, is the 3rd test!"));
+        assertEquals(List.of("test"), getTokens("...test !!!"));
 
         assertTrue(getTokens("don't").isEmpty());
     }
 
     @Test
     void edgeCaseTest() {
-        assertEquals(Set.of("test"), getTokens("test   "));
-        assertEquals(Set.of("test"), getTokens("{_test'"));
-        assertEquals(Set.of("test"), getTokens("   test'"));
+        assertEquals(List.of("test"), getTokens("test   "));
+        assertEquals(List.of("test"), getTokens("{_test'"));
+        assertEquals(List.of("test"), getTokens("   test'"));
     }
 
     @Test
@@ -59,8 +59,8 @@ class StemTokenizationTest {
 
     @Test
     void StemTest() {
-        assertEquals(Set.of("run"), getTokens("running"));
-        assertEquals(Set.of("link"), getTokens("linked"));
+        assertEquals(List.of("run"), getTokens("running"));
+        assertEquals(List.of("link"), getTokens("linked"));
     }
 
 }

@@ -3,16 +3,15 @@ package indexer.tokenizer;
 import opennlp.tools.stemmer.PorterStemmer;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class StemTokenization extends BaseTokenization implements TokenStrategy {
     private static final ThreadLocal<PorterStemmer> STEMMER = ThreadLocal.withInitial(PorterStemmer::new);
     private static final ThreadLocal<CharSeq> CHECKER = ThreadLocal.withInitial(CharSeq::new);
+    private static final ThreadLocal<List<String>> BUFFER = ThreadLocal.withInitial(() -> new ArrayList<>(64));
 
     @Override
-    public void toTokens(String input, Set<String> list) {
+    public void toTokens(String input, List<String> list) {
         if (input == null || input.isBlank())
             return;
 
@@ -75,10 +74,12 @@ public class StemTokenization extends BaseTokenization implements TokenStrategy 
         if (input == null || input.isBlank())
             return List.of();
 
-        Set<String> tokens = new HashSet<>();
-        toTokens(input, tokens);
-
-        return new ArrayList<>(tokens);
+        // Using List to catch repeated tokens
+        List<String> buf = BUFFER.get();
+        buf.clear();
+        
+        toTokens(input, buf);
+        return buf;
     }
 
     private boolean isNotValid(char c) {

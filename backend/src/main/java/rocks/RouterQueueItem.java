@@ -8,7 +8,7 @@ import java.util.TreeMap;
 /**
  * Interface for router to index
  */
-public interface RouterQueueItem {
+public sealed interface RouterQueueItem {
     /**
      * This holds a complete batch to be ingested by index
      *

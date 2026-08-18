@@ -55,12 +55,9 @@ public final class CsvParser {
     }
 
     /**
-     * This batches documents into chunks of 5k
+     * This batches documents into chunks of 5k.
      *
-     * @param start page number for loop
-     * @param end   page number for loop
-     * @throws IOException          if path does not exist
-     * @throws InterruptedException is from the queues
+     * @throws IOException If path does not exist
      */
     public void parseDataTo(BlockingQueue<QueueItem> queue1, BlockingQueue<QueueItem> queue2, int start, int end) throws IOException, InterruptedException {
         try (IndexedCsvReader<BsonDocument> reader = IndexedCsvReader.builder().index(index).pageSize(CAPACITY).build(new BsonDocHandler(headers), PATH)) {

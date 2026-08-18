@@ -1,11 +1,10 @@
 package indexer.tokenizer;
 
 import java.util.List;
-import java.util.Set;
 
 public class StandardTokenizationV3 extends BaseTokenization implements TokenStrategy {
     @Override
-    public void toTokens(String input, Set<String> list) {
+    public void toTokens(String input, List<String> list) {
         if (input == null || input.isBlank()) {
             return;
         }

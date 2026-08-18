@@ -24,7 +24,7 @@ public final class InvertedIndexer {
 
     public void tokenizeToQueue(QueueItem.DocumentBatch from, BlockingQueue<QueueItem> to) throws InterruptedException {
         Object2ObjectOpenHashMap<String, List<InternalPosting>> tokenToPostings = new Object2ObjectOpenHashMap<>(262144);
-        List<String> uniqueTokens = new ArrayList<>(256);
+        List<String> totalTokens = new ArrayList<>(128);
 
         List<BsonDocument> docs = from.documents();
         int batchSize = docs.size();
@@ -36,7 +36,7 @@ public final class InvertedIndexer {
             BsonDocument doc = docs.get(docIndex);
             uuidList[docIndex] = doc.getBinary("_id").asUuid(); // Mapping the UUIDs to an array
 
-            uniqueTokens.clear(); // clear for the next batch
+            totalTokens.clear(); // clear for the next batch
 
             // Collect all tokens for the entire document
             for (Map.Entry<String, BsonValue> field : doc.entrySet()) {
@@ -44,25 +44,26 @@ public final class InvertedIndexer {
                     continue;
 
                 if (field.getValue() instanceof BsonString str)
-                    uniqueTokens.addAll(tk.toTokens(str.getValue()));
+                    totalTokens.addAll(tk.toTokens(str.getValue()));
             }
 
-            int position = 0;
+            int posInDoc = 0;
 
             // Record every token position sequentially
-            for (String token : uniqueTokens) {
+            for (String token : totalTokens) {
+                // Condenses total tokens into unqiue tokens per doc : positions
                 List<InternalPosting> postings = tokenToPostings.computeIfAbsent(token, k -> new ArrayList<>());
 
                 // Check if there is already a posting for the CURRENT document
                 if (!postings.isEmpty() && postings.getLast().docIndex() == docIndex)
-                    postings.getLast().positions().add(position);
-                else { // For first occurence, create a new Posting record
-                    IntArrayList positions = new IntArrayList();
-                    positions.add(position);
+                    postings.getLast().positions().add(posInDoc);
+                else { // For FIRST occurence, create a new Posting record
+                    IntArrayList positions = new IntArrayList(2);
+                    positions.add(posInDoc);
                     postings.add(new InternalPosting(docIndex, positions));
                 }
 
-                position++;
+                posInDoc++;
             }
         }
 
@@ -70,6 +71,11 @@ public final class InvertedIndexer {
         to.put(new QueueItem.IndexerBatch(tokenToPostings, uuidList));
     }
 
+    /**
+     * This is used for search queries
+     *
+     * @return The List of valid Tokens
+     */
     public List<String> tokenizeKeyWords(String input) {
         return tk.toTokens(input);
     }

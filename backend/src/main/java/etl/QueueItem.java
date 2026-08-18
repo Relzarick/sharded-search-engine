@@ -8,6 +8,11 @@ import java.util.List;
 import java.util.UUID;
 
 public sealed interface QueueItem {
+    /**
+     * It is batched to 5k chunks by default.
+     *
+     * @param documents Batched CSV rows
+     */
     record DocumentBatch(List<BsonDocument> documents) implements QueueItem {
     }
 

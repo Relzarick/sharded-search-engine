@@ -35,9 +35,9 @@ Currently designed to only ingest a single .csv file it does not support multipl
 
 ## Performance Benchmarks
 
-The dataset tested contained around 1.23 million CSV rows in ~27s.
+The dataset tested contained around 1.23 million CSV rows in ~25.8s.
 
-- Total CSV Parse Time: ~2.3 seconds
+- Total CSV Parse Time: ~2.4 seconds
 
 - MongoDB Ingestion Speed: ~33,243 rows/sec (1.23M rows)
 
@@ -45,10 +45,10 @@ The dataset tested contained around 1.23 million CSV rows in ~27s.
 
 | Metric              | Throughput       |
 |---------------------|------------------|
-| **Total Pipeline**  | ~45.5k RPS       |
-| **CSV Parse**       | ~534.7k RPS      |
-| **Mongo Operation** | ~45.5k RPS       |
-| **Indexing**        | ~2.2M tokens/sec |
+| **Total Pipeline**  | ~47.6k RPS       |
+| **CSV Parse**       | ~512.5k RPS      |
+| **Mongo Operation** | ~52.5k RPS       |
+| **Indexing**        | ~2.6M tokens/sec |
 
 ## Notes
 
