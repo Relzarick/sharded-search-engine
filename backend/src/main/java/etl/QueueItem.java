@@ -2,7 +2,6 @@ package etl;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.bson.BsonDocument;
-import redis.InternalPosting;
 
 import java.util.List;
 import java.util.UUID;

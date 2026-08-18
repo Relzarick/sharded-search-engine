@@ -59,13 +59,9 @@ class Submissioner {
     void compactThenClose() {
         try {
             index.ingestAndCompact();
-            index.clearTmpFiles(pathName);
             index.close();
         } catch (RocksDBException e) {
             logger.error("ROCKSDB ERROR: Failed ingestion/compaction", e);
-            Thread.currentThread().interrupt();
-        } catch (IOException e) {
-            logger.error("IO ERROR: Failed to delete temp folders");
             Thread.currentThread().interrupt();
         }
     }
@@ -73,8 +69,8 @@ class Submissioner {
     public void closeThread() {
         service.shutdown();
 
-        try { // Force shutdown after 45 seconds
-            if (!service.awaitTermination(45, TimeUnit.SECONDS)) {
+        try { // Force shutdown after n seconds
+            if (!service.awaitTermination(60, TimeUnit.SECONDS)) {
                 service.shutdownNow();
                 throw new RuntimeException("Shard worker did not terminate in time");
             }

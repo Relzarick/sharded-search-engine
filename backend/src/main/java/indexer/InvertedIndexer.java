@@ -1,5 +1,6 @@
 package indexer;
 
+import etl.InternalPosting;
 import etl.QueueItem;
 import indexer.tokenizer.TokenStrategy;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -7,7 +8,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.BsonValue;
-import redis.InternalPosting;
 
 import java.util.ArrayList;
 import java.util.List;

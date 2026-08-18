@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public final class RedisService implements Index {
+public final class RedisService {
     private final RedisClient client;
     private static final RedisCodec<Object, byte[]> CODEC = new IndexCodec();
     private final StatefulRedisConnection<Object, byte[]> connection;
@@ -32,7 +32,6 @@ public final class RedisService implements Index {
         async = connection.async();
     }
 
-    @Override
     public void set(String key, List<PositionalPosting> postings) {
         byte[][] members = new byte[postings.size()][];
 
@@ -56,7 +55,6 @@ public final class RedisService implements Index {
         async.sadd(key, members);
     }
 
-    @Override
     public void flush() {
         RedisFuture<String> barrier = async.ping();
         connection.flushCommands();
@@ -73,7 +71,6 @@ public final class RedisService implements Index {
         }
     }
 
-    @Override
     public List<PositionalPosting> retrieve(String key) throws ExecutionException, InterruptedException {
         RedisFuture<Set<byte[]>> future = async.smembers(key);
         connection.flushCommands();
@@ -97,7 +94,6 @@ public final class RedisService implements Index {
         return postings;
     }
 
-    @Override
     public void close() {
         connection.close();
         client.close();

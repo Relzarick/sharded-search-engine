@@ -1,15 +1,12 @@
 package rocks;
 
+import etl.InternalPosting;
 import etl.TokenHasher;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.rocksdb.RocksDBException;
-import org.slf4j.LoggerFactory;
-import redis.InternalPosting;
 import search.PositionalPosting;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 
 public class RocksRouter {
@@ -64,12 +61,6 @@ public class RocksRouter {
 
         for (Submissioner shard : shards)
             shard.closeThread();
-
-        try {
-            Files.deleteIfExists(Paths.get("index/tmp/"));
-        } catch (IOException e) {
-            LoggerFactory.getLogger(RocksRouter.class).error("Failed to delete temp directory", e);
-        }
     }
 
 }

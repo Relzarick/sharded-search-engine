@@ -133,10 +133,6 @@ public class RocksService {
         db.compactRange(null, null);
     }
 
-    public void clearTmpFiles(String name) throws IOException {
-        Files.deleteIfExists(Paths.get(tmpPath + name));
-    }
-
     public void close() {
         db.close();
     }
