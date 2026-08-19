@@ -45,10 +45,10 @@ public class SearchHandler implements HttpHandler {
             byte[] bytes = response.getBytes(charset);
 
             sendResponses(exchange, 200, bytes);
-        } catch (IOException e) {
-            logger.error("SERVER ERROR: {}", e.getMessage());
+        } catch (Exception e) {
+            logger.error("Exception processing search query", e);
 
-            byte[] bytes = "Server Error".getBytes(charset);
+            byte[] bytes = "Internal Server Error".getBytes(charset);
             sendResponses(exchange, 500, bytes);
         }
     }

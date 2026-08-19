@@ -10,7 +10,7 @@ export class StatusNotifier {
     [NotificationSource.ROW_COPY]: "Copied row to clipboard",
     [NotificationSource.NO_RESULTS]: "No results found",
     [NotificationSource.SEARCH_RESULTS]: (count) => `Found ${count.toLocaleString()} result${count === 1 ? "" : "s"}`,
-    [NotificationSource.SERVER_ERROR]: "Server is down or I couldn't get a vm.",
+    [NotificationSource.SERVER_ERROR]: "Server is down or the VM expired.",
   };
 
   constructor(element, displayDurationMs = 2500) {

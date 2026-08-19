@@ -64,8 +64,6 @@ services:
 #      start_interval: 1s
 #    ports:
 #      - "6379:6379"
-#    volumes:
-#      - redis_cache:/data
 #    deploy:
 #      resources:
 #        limits:
@@ -75,4 +73,3 @@ volumes:
   mongo_data:
   mongo_config:
   rocksdb_data:
-#  redis_cache:

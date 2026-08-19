@@ -35,7 +35,7 @@ Currently designed to only ingest a single .csv file it does not support multipl
 
 ## Performance Benchmarks
 
-The dataset tested contained around 1.23 million CSV rows in ~25.8s.
+The dataset tested contained around 1.23 million CSV rows in ~24s.
 
 - Total CSV Parse Time: ~2.4 seconds
 
@@ -45,10 +45,10 @@ The dataset tested contained around 1.23 million CSV rows in ~25.8s.
 
 | Metric              | Throughput       |
 |---------------------|------------------|
-| **Total Pipeline**  | ~47.6k RPS       |
+| **Total Pipeline**  | ~51.2k RPS       |
 | **CSV Parse**       | ~512.5k RPS      |
-| **Mongo Operation** | ~52.5k RPS       |
-| **Indexing**        | ~2.6M tokens/sec |
+| **Mongo Operation** | ~56.9k RPS       |
+| **Indexing**        | ~2.8M tokens/sec |
 
 ## Notes
 

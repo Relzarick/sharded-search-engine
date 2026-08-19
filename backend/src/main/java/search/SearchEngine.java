@@ -3,8 +3,8 @@ package search;
 import indexer.InvertedIndexer;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntArrays;
+import it.unimi.dsi.fastutil.objects.AbstractObject2DoubleMap;
 import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
-import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import mongo.DocumentResults;
@@ -20,6 +20,7 @@ public class SearchEngine {
     private final Repository mongo;
     private final InvertedIndexer indexer;
     private final IndexReader query = new IndexReader();
+//    private final Cachier cache = new Cachier();
 
     private static final double PROXIMITY_WEIGHT = 5.0;
     private static final double PHRASE_WEIGHT = 2.0;
@@ -30,10 +31,26 @@ public class SearchEngine {
         indexer = idx;
     }
 
+    /**
+     * Checks the cache for an exact query match before performing
+     * intersection and query processing.
+     *
+     * @param input  Exact query string received from the client.
+     * @param offset Zero-based starting index of the results. <br>
+     *               Calculated as {@code pageNumber * size}
+     * @param size   Maximum number of results to return.
+     */
     public String search(String input, int offset, int size) {
         List<String> cleanedInput = indexer.tokenizeKeyWords(input);
 
+        // check cache first
+//        QueryResult queryResult = cache.checkCache(cleanedInput);
+
+//        if (queryResult == null)
+//            queryResult = query.fetchFromIndex(cleanedInput);
+
         QueryResult queryResult = query.fetchFromIndex(cleanedInput);
+
         long totalDoc = mongo.getCollection().estimatedDocumentCount();
 
         if (queryResult.docTermPos().isEmpty())
@@ -47,8 +64,7 @@ public class SearchEngine {
     }
 
     private List<BsonDocument> reorder(List<BsonDocument> documents, List<UUID> rankedOrder) {
-        Map<UUID, BsonDocument> byId = new HashMap<>((int) (documents.size() / 0.75) + 1);
-
+        Map<UUID, BsonDocument> byId = new HashMap<>(documents.size());
         for (BsonDocument doc : documents)
             byId.put(doc.getBinary("_id").asUuid(UuidRepresentation.STANDARD), doc);
 
@@ -64,19 +80,27 @@ public class SearchEngine {
     }
 
     private List<UUID> rankResults(QueryResult result, List<String> queryTokens, long totalDocCount, int offset, int size) {
-        Object2DoubleOpenHashMap<UUID> tokenScore = new Object2DoubleOpenHashMap<>();
+        // Listing store each entry of UUID : scores
+        List<Object2DoubleMap.Entry<UUID>> entries = new ArrayList<>(result.docTermPos().size());
+
+        // Measures how rare atoken is across the whole collection
+        Map<String, Double> idfScores = new HashMap<>();
+
+        // Calculate the score for the tokens once
+        for (String token : queryTokens)
+            idfScores.put(token, Math.log((double) totalDocCount / result.docFreq().getInt(token)));
 
         for (Map.Entry<UUID, Object2ObjectOpenHashMap<String, IntArrayList>> doc : result.docTermPos().entrySet()) {
+            double tfidfScore = 0.0;
+
             Object2ObjectOpenHashMap<String, IntArrayList> tokenPosition = doc.getValue();
             UUID uuid = doc.getKey();
-
-            double tfidfScore = 0.0;
 
             for (Object2ObjectMap.Entry<String, IntArrayList> position : tokenPosition.object2ObjectEntrySet()) {
                 int termFreq = position.getValue().size();
                 String token = position.getKey();
 
-                double idf = Math.log((double) totalDocCount / result.docFreq().getInt(token));
+                double idf = idfScores.get(token);
                 tfidfScore += termFreq * idf;
             }
 
@@ -90,13 +114,11 @@ public class SearchEngine {
                     score += PHRASE_WEIGHT * tfidfScore;
                 else if (minGap < Integer.MAX_VALUE)
                     score += PROXIMITY_WEIGHT * (1.0 / minGap);
-
             }
 
-            tokenScore.put(uuid, score);
+            entries.add(new AbstractObject2DoubleMap.BasicEntry<>(uuid, score));
         }
 
-        List<Object2DoubleMap.Entry<UUID>> entries = new ArrayList<>(tokenScore.object2DoubleEntrySet());
         entries.sort((a, b) -> Double.compare(b.getDoubleValue(), a.getDoubleValue()));
 
         if (offset >= entries.size())

@@ -24,7 +24,6 @@ public final class InvertedIndexer {
 
     public void tokenizeToQueue(QueueItem.DocumentBatch from, BlockingQueue<QueueItem> to) throws InterruptedException {
         Object2ObjectOpenHashMap<String, List<InternalPosting>> tokenToPostings = new Object2ObjectOpenHashMap<>(262144);
-        List<String> totalTokens = new ArrayList<>(128);
 
         List<BsonDocument> docs = from.documents();
         int batchSize = docs.size();
@@ -36,34 +35,30 @@ public final class InvertedIndexer {
             BsonDocument doc = docs.get(docIndex);
             uuidList[docIndex] = doc.getBinary("_id").asUuid(); // Mapping the UUIDs to an array
 
-            totalTokens.clear(); // clear for the next batch
+            int posInDoc = 0;
 
             // Collect all tokens for the entire document
             for (Map.Entry<String, BsonValue> field : doc.entrySet()) {
                 if (field.getKey().equals("_id"))
                     continue;
 
-                if (field.getValue() instanceof BsonString str)
-                    totalTokens.addAll(tk.toTokens(str.getValue()));
-            }
+                if (field.getValue() instanceof BsonString str) {
+                    for (String token : tk.toTokens(str.getValue())) {
+                        List<InternalPosting> postings = tokenToPostings.computeIfAbsent(token, k -> new ArrayList<>());
+                        InternalPosting last = postings.isEmpty() ? null : postings.getLast();
 
-            int posInDoc = 0;
+                        // Check if there is already a posting for the CURRENT document
+                        if (last != null && last.docIndex() == docIndex) {
+                            last.positions().add(posInDoc);
+                        } else { // For FIRST occurence, create a new Posting record
+                            IntArrayList positions = new IntArrayList(2);
+                            positions.add(posInDoc);
+                            postings.add(new InternalPosting(docIndex, positions));
+                        }
 
-            // Record every token position sequentially
-            for (String token : totalTokens) {
-                // Condenses total tokens into unqiue tokens per doc : positions
-                List<InternalPosting> postings = tokenToPostings.computeIfAbsent(token, k -> new ArrayList<>());
-
-                // Check if there is already a posting for the CURRENT document
-                if (!postings.isEmpty() && postings.getLast().docIndex() == docIndex)
-                    postings.getLast().positions().add(posInDoc);
-                else { // For FIRST occurence, create a new Posting record
-                    IntArrayList positions = new IntArrayList(2);
-                    positions.add(posInDoc);
-                    postings.add(new InternalPosting(docIndex, positions));
+                        posInDoc++;
+                    }
                 }
-
-                posInDoc++;
             }
         }
 

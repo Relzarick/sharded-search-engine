@@ -10,7 +10,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -37,7 +36,7 @@ class InvertedIndexerTest {
     @Test
     void tokenizeKeyWordsTest() {
         String input = "Chhota Bheem and the Shinobi Secret";
-        Set<String> tokens = indexer.tokenizeKeyWords(input);
+        List<String> tokens = indexer.tokenizeKeyWords(input);
 
         assertNotNull(tokens, "Tokens set should not be null");
         assertFalse(tokens.isEmpty(), "Tokens set should not be empty for valid input");

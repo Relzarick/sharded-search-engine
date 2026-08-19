@@ -26,10 +26,8 @@ public class Server {
             if (!db.ifExists())
                 FirstIngestion.run(db, indexer);
 
-            SearchEngine search = new SearchEngine(db, indexer);
-
             HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
-            start(server, new SearchHandler(search));
+            startServer(server, new SearchHandler(new SearchEngine(db, indexer)));
 
             shutdownHook(server, db);
         } catch (IOException e) {
@@ -41,12 +39,12 @@ public class Server {
         }
     }
 
-    private static void start(HttpServer server, HttpHandler handler) {
+    private static void startServer(HttpServer server, HttpHandler handler) {
         server.createContext("/search", handler);
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
 
-        logger.info("Server is running on http://wretch:8080");
+        logger.info("Server is running on http://bastard:8080");
     }
 
     private static void shutdownHook(HttpServer server, Repository db) {
